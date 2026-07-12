@@ -3,6 +3,8 @@
 **Offensive red teaming suite for Windows.** Recon, dorking, exploit, phish, C2, exfil — all in one Electron app. No terminal crawling required.
 
 > ⚠️ **Beta.** Stuff breaks. Only use on systems you own or have written permission to test.
+>
+> **Heavy AI assistance** used in development — this was built iteratively with an AI coding assistant. Review code before trusting it blindly.
 
 ---
 
