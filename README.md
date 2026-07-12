@@ -1,6 +1,6 @@
 # RedHawk 🦅
 
-**Offensive red teaming suite for Windows.** Recon, dorking, exploit, phish, C2, exfil — all in one Electron app. No terminal crawling required.
+**Offensive red teaming suite for Windows.** Recon, exploit, phish, C2, exfil — all in one Electron app. No terminal crawling required.
 
 > ⚠️ **Beta.** Stuff breaks. Only use on systems you own or have written permission to test.
 >
