@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0f172a;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #334155;
+    border-radius: 3px;
+  }
+
+  body {
+    @apply font-sans antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-midnight-900 border border-midnight-700 rounded-lg p-4 shadow-lg;
+  }
+
+  .card-header {
+    @apply text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3;
+  }
+
+  .btn-primary {
+    @apply bg-redhawk-600 hover:bg-redhawk-500 text-white font-medium py-2 px-4 
+           rounded-md transition-colors duration-150 disabled:opacity-50 
+           disabled:cursor-not-allowed focus:outline-none focus:ring-2 
+           focus:ring-redhawk-500 focus:ring-offset-2 focus:ring-offset-midnight-900;
+  }
+
+  .btn-secondary {
+    @apply bg-midnight-800 hover:bg-midnight-700 text-gray-200 font-medium py-2 px-4 
+           rounded-md transition-colors duration-150 border border-midnight-600
+           disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none 
+           focus:ring-2 focus:ring-midnight-500 focus:ring-offset-2 focus:ring-offset-midnight-900;
+  }
+
+  .btn-ghost {
+    @apply text-gray-400 hover:text-gray-200 hover:bg-midnight-800 font-medium py-2 px-3 
+           rounded-md transition-colors duration-150;
+  }
+
+  .input-field {
+    @apply bg-midnight-900 border border-midnight-600 rounded-md px-4 py-2.5 text-gray-100 
+           placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-redhawk-500 
+           focus:border-transparent transition-all duration-150 w-full;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-open {
+    @apply badge bg-green-900/50 text-green-400 border border-green-700;
+  }
+
+  .badge-closed {
+    @apply badge bg-red-900/50 text-red-400 border border-red-700;
+  }
+
+  .badge-filtered {
+    @apply badge bg-yellow-900/50 text-yellow-400 border border-yellow-700;
+  }
+
+  .terminal {
+    @apply bg-black/60 border border-midnight-700 rounded-lg p-4 font-mono text-sm leading-relaxed;
+  }
+}

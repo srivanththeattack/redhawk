@@ -1,0 +1,24 @@
+REDHAWK — LEGAL DISCLAIMER
+
+RedHawk is an offensive security reconnaissance tool designed for
+authorized security testing only.
+
+By using this software, you acknowledge and agree that:
+
+  1. You have explicit written permission to test the target
+     system(s) and network(s).
+
+  2. Unauthorized use of this tool against any system without
+     permission is illegal and may result in criminal prosecution.
+
+  3. The authors assume no liability for any misuse or damage
+     caused by this software.
+
+  4. You are solely responsible for complying with all applicable
+     local, state, and federal laws.
+
+  5. This software is provided "AS IS", without warranty of any
+     kind, express or implied.
+
+If you do not have explicit authorization to test the target
+systems, DO NOT USE THIS SOFTWARE.
