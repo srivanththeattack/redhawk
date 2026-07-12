@@ -8,6 +8,8 @@ release/
 
 # Python embedded runtime (downloaded by install script)
 python/python._embed/
+python/python-embed.zip
+python/get-pip.py
 
 # Local database
 *.json
