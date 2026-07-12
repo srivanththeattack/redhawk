@@ -1,142 +1,62 @@
 # RedHawk 🦅
 
-**Offensive security reconnaissance suite** — Point it at a target, get actionable intel, decide your next move.
+**Offensive red teaming suite for Windows.** Recon, dorking, exploit, phish, C2, exfil — all in one Electron app. No terminal crawling required.
 
-Built with Electron + React + Python. No CLI required.
-
-> ⚠️ **For authorized security testing only.** You must have explicit written permission before testing any system.
+> ⚠️ **Beta.** Stuff breaks. Only use on systems you own or have written permission to test.
 
 ---
 
-## Quick Start (Windows)
-
-### Prerequisites
-- **Windows 10/11** (64-bit)
-- **Node.js 18+** — [Download here](https://nodejs.org/) (LTS version)
-- That's it. Everything else is handled automatically.
-
-### One-Click Install
+## Install
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/RedHawk.git
-cd RedHawk
-```
-
-Then **double-click** `RedHawk.bat` — it will:
-1. Install npm dependencies
-2. Download embedded Python 3.12 + required packages
-3. Check for Nmap (prompts to install if missing)
-4. Build and launch the app
-
-Or use the desktop shortcut (created automatically after first run):
-
-```
-RedHawk.lnk  ← on your desktop
-```
-
-### Manual Install
-
-```powershell
-# Install all dependencies (nmap, python, pip packages)
-npm run setup
-
-# Create desktop shortcut
-npm run shortcut
-
-# Build and launch
-npm start
-```
-
----
-
-## What It Does
-
-### Phase 1 — Reconnaissance
-
-| Module | What it finds |
-|---|---|
-| **WHOIS** | Registrar, creation/expiry dates, org name, name servers, contact emails |
-| **DNS Enumeration** | A, AAAA, MX, NS, TXT, CNAME, SOA records + common subdomains |
-| **Subdomain Discovery** | 2500+ subdomain wordlist bruteforce via DNS resolution |
-| **Email OSINT** | Common email patterns (admin@, info@, support@, etc.) |
-| **Port Scanning** | Nmap integration — top 1000 ports, version detection, OS fingerprinting |
-
-### Coming in Phase 2+
-- Vulnerability scanning (nmap scripts + searchsploit)
-- Metasploit RPC integration
-- Evilginx2 phishing framework bridge
-- Full kill chain tracker
-- Report export (PDF/HTML)
-
----
-
-## Project Structure
-
-```
-RedHawk/
-├── electron/          # Electron main process + backend services
-│   ├── main.ts        # App entry, window, IPC handlers
-│   ├── preload.ts     # Secure bridge (renderer ↔ main)
-│   └── services/      # Tool runner, nmap parser, Python runner, etc.
-├── src/               # React frontend
-│   ├── components/    # UI components (cards, forms, prompts)
-│   ├── hooks/         # React hooks (useScan)
-│   ├── store/         # Zustand state management
-│   └── types/         # TypeScript definitions
-├── python/            # Embedded Python runtime + OSINT scripts
-│   ├── scripts/       # whois_lookup.py, dns_enum.py, etc.
-│   └── requirements.txt
-├── scripts/           # PowerShell installer scripts
-├── resources/         # Icons, disclaimers
-├── RedHawk.bat        # One-click launcher
-└── package.json
-```
-
----
-
-## For Developers
-
-```powershell
-# Dev mode (hot-reload frontend)
-npm run dev
-
-# Type-check
-npm run typecheck
-
-# Build only
-npm run build
-
-# Package for distribution (creates installer .exe)
+git clone https://github.com/srivanththeattack/redhawk.git
+cd redhawk
+npm install
 npm run package
 ```
 
-The dev workflow:
-1. Run `npm run dev` — starts Vite dev server on `localhost:5173`
-2. In another terminal: `npx tsc -p tsconfig.node.json && npx electron .` — launches Electron pointing at the dev server
-3. Edit React code → instant hot reload
+That spits out an installer at `release\RedHawk Setup 0.1.1.exe` — run it, and you're done.
+
+Or just grab the portable exe from `release\win-unpacked\RedHawk.exe` and pin it to your taskbar.
+
+### What else you'll need
+
+- **Node.js 18+** — grab it from [nodejs.org](https://nodejs.org/)
+- **Nmap** — the app can auto-install it (hit "Install Deps" in the header), or get it from [nmap.org](https://nmap.org/)
+- **Embedded Python** — auto-downloaded by the app on first launch
+- **msfrpcd** (if you want the Exploit tab) — runs in WSL: `msfrpcd -P redhawk -S -f -j`
 
 ---
 
-## Tech Stack
+## What's inside
 
-| Layer | Technology |
+| Tab | What it does |
 |---|---|
-| Frontend | React 18, TypeScript, Tailwind CSS, Zustand |
-| Backend | Electron 31, Node.js child_process |
-| Scripting | Embedded Python 3.12 + pip packages |
-| Scanning | Nmap 7.95 (via subprocess) |
-| Data | lowdb (local JSON storage) |
-| Installer | NSIS (via electron-builder) |
+| **Recon** | WHOIS, DNS, subdomains, email OSINT, Nmap port scan |
+| **Exploit** | Metasploit RPC — search exploits, generate payloads, manage sessions |
+| **Phish** | Evilginx2 campaign management |
+| **C2** | Built-in HTTP command & control server + agent payloads |
+| **Exfil** | File collection, screenshot, browser data, AES encrypted packaging |
+
+---
+
+## Dev
+
+```powershell
+npm run dev          # Vite hot-reload
+npx electron . --dev # Electron pointing at Vite
+npm run build        # Compile everything
+npm run package      # Build + create installer
+```
+
+---
+
+## Tech
+
+React 18, TypeScript, Tailwind, Zustand, Electron 31, embedded Python 3.12, Nmap 7.95.
 
 ---
 
 ## License
 
-GPLv3 — Free and open source.
-
-```
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-```
+GPLv3.
