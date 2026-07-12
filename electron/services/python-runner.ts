@@ -1,21 +1,15 @@
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import { paths } from './paths';
 
 export class PythonRunner {
   private pythonPath: string;
   private scriptsDir: string;
 
-  constructor(userDataPath: string, isPackaged: boolean) {
-    if (isPackaged) {
-      // In packaged app, python is bundled alongside the app
-      this.pythonPath = path.join(process.resourcesPath, 'python', 'python._embed', 'python.exe');
-      this.scriptsDir = path.join(process.resourcesPath, 'python', 'scripts');
-    } else {
-      // In dev mode, look relative to project root
-      this.pythonPath = path.join(__dirname, '..', '..', 'python', 'python._embed', 'python.exe');
-      this.scriptsDir = path.join(__dirname, '..', '..', 'python', 'scripts');
-    }
+  constructor(userDataPath: string, _isPackaged: boolean) {
+    this.pythonPath = paths.pythonExe;
+    this.scriptsDir = paths.pythonScripts;
 
     // Fallback to system python if embedded not found
     if (!fs.existsSync(this.pythonPath)) {
@@ -34,9 +28,10 @@ export class PythonRunner {
     }
 
     return new Promise((resolve) => {
+      // Use shell: false to avoid path-with-spaces being split by cmd.exe
       const proc = spawn(this.pythonPath, [scriptPath, ...args], {
-        shell: true,
-        timeout: 30000, // 30s timeout per script
+        shell: false,
+        timeout: 30000,
       });
 
       let stdout = '';

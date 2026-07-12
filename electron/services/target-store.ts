@@ -1,9 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-const { Low } = require('lowdb');
-const { JSONFile } = require('lowdb/node');
-
 interface ScanEntry {
   target: string;
   timestamp: string;
@@ -15,61 +12,67 @@ interface StoreData {
   scanHistory: ScanEntry[];
 }
 
+const DEFAULT_DATA: StoreData = { currentTarget: null, scanHistory: [] };
+
 export class TargetStore {
-  private db: any;
-  private initialized = false;
+  private dbPath: string;
+  private data: StoreData;
 
   constructor(userDataPath: string) {
-    const dbPath = path.join(userDataPath, 'redhawk-db.json');
-    const adapter = new JSONFile(dbPath);
-    this.db = new Low(adapter, { currentTarget: null, scanHistory: [] } as StoreData);
+    this.dbPath = path.join(userDataPath, 'redhawk-db.json');
+    this.data = this.load();
   }
 
-  private async ensureInit() {
-    if (!this.initialized) {
-      await this.db.read();
-      this.db.data ||= { currentTarget: null, scanHistory: [] };
-      this.initialized = true;
+  private load(): StoreData {
+    try {
+      if (fs.existsSync(this.dbPath)) {
+        const raw = fs.readFileSync(this.dbPath, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch {
+      // corrupted file, reset
+    }
+    return { ...DEFAULT_DATA };
+  }
+
+  private save() {
+    try {
+      fs.writeFileSync(this.dbPath, JSON.stringify(this.data, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('TargetStore save failed:', err);
     }
   }
 
   async setTarget(target: string) {
-    await this.ensureInit();
-    this.db.data.currentTarget = target;
-    await this.db.write();
+    this.data.currentTarget = target;
+    this.save();
     return { success: true, target };
   }
 
   async getTarget(): Promise<string | null> {
-    await this.ensureInit();
-    return this.db.data.currentTarget;
+    return this.data.currentTarget;
   }
 
   async addScanResult(target: string, results: any) {
-    await this.ensureInit();
     const entry: ScanEntry = {
       target,
       timestamp: new Date().toISOString(),
       results,
     };
-    this.db.data.scanHistory.unshift(entry);
+    this.data.scanHistory.unshift(entry);
     // Keep last 50 scans
-    if (this.db.data.scanHistory.length > 50) {
-      this.db.data.scanHistory = this.db.data.scanHistory.slice(0, 50);
+    if (this.data.scanHistory.length > 50) {
+      this.data.scanHistory = this.data.scanHistory.slice(0, 50);
     }
-    await this.db.write();
+    this.save();
     return entry;
   }
 
   async getScanResults(target: string): Promise<ScanEntry | null> {
-    await this.ensureInit();
-    return (
-      this.db.data.scanHistory.find((e: ScanEntry) => e.target === target) || null
-    );
+    return this.data.scanHistory.find((e) => e.target === target) || null;
   }
 
   async getHistory(): Promise<ScanEntry[]> {
-    await this.ensureInit();
-    return this.db.data.scanHistory;
+    return this.data.scanHistory;
   }
 }

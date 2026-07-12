@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useScan } from './hooks/useScan';
 import { Disclaimer } from './components/Disclaimer';
 import { TargetInput } from './components/TargetInput';
 import { KillChainBar } from './components/KillChainBar';
 import { ResultsPanel } from './components/ResultsPanel';
 import { ScanProgress } from './components/ScanProgress';
-import { ActionPrompt } from './components/ActionPrompt';
-import { GoogleDorkPanel } from './components/GoogleDorkPanel';
+
 import { MsfPanel } from './components/MsfPanel';
 import { PhishingPanel } from './components/PhishingPanel';
+import { C2Panel } from './components/C2Panel';
+import { ExfilPanel } from './components/ExfilPanel';
+import { UpdateBanner } from './components/UpdateBanner';
+import { ReportExporter } from './components/ReportExporter';
 
-type TabId = 'recon' | 'dorking' | 'exploit' | 'phish';
+type TabId = 'recon' | 'exploit' | 'phish' | 'c2' | 'exfil';
 
 interface TabDef {
   id: TabId;
@@ -20,21 +23,14 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'recon', label: 'Recon', icon: '🔍', description: 'Target reconnaissance, OSINT, port scanning' },
-  { id: 'dorking', label: 'Dorking', icon: '🔎', description: 'Google dorking for exposed information' },
+  { id: 'recon', label: 'Recon', icon: '🔍', description: 'Target recon, OSINT, port scanning' },
   { id: 'exploit', label: 'Exploit', icon: '💀', description: 'Metasploit integration, payload generation' },
   { id: 'phish', label: 'Phish', icon: '🎣', description: 'Phishing campaigns via evilginx2' },
+  { id: 'c2', label: 'C2', icon: '📡', description: 'Command & control server' },
+  { id: 'exfil', label: 'Exfil', icon: '📤', description: 'Data exfiltration' },
 ];
 
-const ACTIONS = [
-  { id: 'whois', icon: '📋', label: 'WHOIS Lookup', description: 'Get domain registration details' },
-  { id: 'dns-enum', icon: '🌐', label: 'DNS Enumeration', description: 'Find A, MX, NS, TXT records' },
-  { id: 'deep-scan', icon: '🔍', label: 'Deep Port Scan', description: 'Scan all 65535 ports with version detection' },
-  { id: 'vuln-scan', icon: '🛡', label: 'Vulnerability Scan', description: 'Check for known vulnerabilities' },
-  { id: 'subdomain-enum', icon: '🌍', label: 'Subdomain Enumeration', description: 'Discover subdomains via DNS bruteforce' },
-  { id: 'email-osint', icon: '📧', label: 'Email OSINT', description: 'Find employee email addresses' },
-  { id: 'export-report', icon: '📄', label: 'Export Report', description: 'Save results as PDF or HTML report (Phase 2)' },
-];
+
 
 function StatusIndicator({ label, ok }: { label: string; ok: boolean }) {
   return (
@@ -75,23 +71,26 @@ export default function App() {
   const scan = useScan();
   const [currentTab, setCurrentTab] = useState<TabId>('recon');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     scan.loadHistory();
   }, []);
 
-  const handleAction = async (actionId: string) => {
-    const target = scan.results?.target || scan.target;
-    switch (actionId) {
-      case 'whois': await scan.runWhois(target); break;
-      case 'dns-enum': await scan.runDnsEnum(target); break;
-      case 'deep-scan': await scan.runNmapScan(target, '-sV -sS -T4 -p-'); break;
-      case 'vuln-scan': await scan.runNmapScan(target, '-sV --script vuln'); break;
-      case 'subdomain-enum': await scan.runSubdomainEnum(target); break;
-      case 'email-osint': await scan.runEmailOsint(target); break;
-      case 'export-report': alert('Report export coming in Phase 2.'); break;
-    }
-  };
+  // Store refs to scan result sections for scrolling
+  const handleSectionRender = useCallback((id: string, el: HTMLDivElement) => {
+    sectionRefs.current.set(id, el);
+  }, []);
+
+  // Scroll to a section after running a scan
+  const scrollToSection = useCallback((id: string) => {
+    setTimeout(() => {
+      const el = sectionRefs.current.get(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 300);
+  }, []);
 
   if (!scan.disclaimerAccepted) {
     return <Disclaimer onAccept={scan.acceptDisclaimer} />;
@@ -100,7 +99,7 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-gradient-to-b from-midnight-950 via-midnight-950 to-midnight-900">
       {/* ── HEADER ── */}
-      <header className="flex items-center justify-between px-6 py-3 bg-midnight-900/80 backdrop-blur-md border-b border-midnight-800/50 flex-shrink-0">
+      <header className="flex items-center justify-between px-6 py-3 bg-midnight-900/80 backdrop-blur-md border-b border-midnight-800/50 flex-shrink-0 relative z-40">
         <div className="flex items-center gap-4">
           <div className="relative">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-redhawk-600 to-redhawk-800 flex items-center justify-center shadow-lg shadow-redhawk-600/20">
@@ -111,9 +110,9 @@ export default function App() {
           <div>
             <div className="flex items-baseline gap-2">
               <h1 className="text-lg font-bold text-gray-100 leading-tight tracking-tight">RedHawk</h1>
-              <span className="text-[10px] font-medium text-gray-600 bg-midnight-800 px-1.5 py-0.5 rounded uppercase tracking-wider">v0.1</span>
+              <span className="text-[10px] font-medium text-gray-600 bg-midnight-800 px-1.5 py-0.5 rounded uppercase tracking-wider">v0.1.1</span>
             </div>
-            <p className="text-[11px] text-gray-600">Reconnaissance Suite</p>
+            <p className="text-[11px] text-gray-600">Red Teaming Suite</p>
           </div>
 
           {/* Tab navigation */}
@@ -136,7 +135,7 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {!scan.depsStatus?.all && !scan.depsChecking && (
             <button onClick={scan.installDeps} className="btn-secondary text-xs py-1.5 px-3">
               Install Deps
@@ -151,6 +150,7 @@ export default function App() {
               Checking...
             </span>
           )}
+          <UpdateBanner />
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={`btn-ghost text-xs transition-all ${sidebarOpen ? 'bg-midnight-700/50 text-gray-200' : ''}`}
@@ -196,22 +196,54 @@ export default function App() {
                   onScan={scan.startScan}
                   isScanning={scan.phase === 'scanning'}
                 />
-                {scan.phase !== 'idle' && <KillChainBar currentPhase={scan.phase} />}
+
+                {/* Quick action buttons */}
+                {scan.target && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button onClick={() => { scan.runWhois(scan.target); scrollToSection('whois'); }}
+                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-blue-700/50">
+                      📋 WHOIS
+                    </button>
+                    <button onClick={() => { scan.runDnsEnum(scan.target); scrollToSection('dns'); }}
+                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-purple-700/50">
+                      🌐 DNS
+                    </button>
+                    <button onClick={() => { scan.runSubdomainEnum(scan.target); scrollToSection('subdomains'); }}
+                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-yellow-700/50">
+                      🌍 Subdomains
+                    </button>
+                    <button onClick={() => { scan.runEmailOsint(scan.target); scrollToSection('emails'); }}
+                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-pink-700/50">
+                      📧 Emails
+                    </button>
+                    <button onClick={() => { scan.runNmapScan(scan.target, '-sS -T4 --top-ports 1000'); scrollToSection('nmap'); }}
+                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-green-700/50">
+                      🔍 Port Scan
+                    </button>
+                  </div>
+                )}
+
+                {scan.target && <KillChainBar currentPhase={scan.phase} />}
                 <ScanProgress
                   phase={scan.phase}
                   messages={scan.statusMessages}
                   output={scan.scanOutput}
+                  collapsible={true}
                 />
-                {scan.phase === 'complete' && (
-                  <ActionPrompt results={scan.results} actions={ACTIONS} onAction={handleAction} />
-                )}
-                <ResultsPanel results={scan.results} phase={scan.phase} />
+                <ResultsPanel
+                  results={scan.results}
+                  phase={scan.phase}
+                  scanTasks={scan.scanTasks}
+                  onSectionRender={handleSectionRender}
+                />
+                <ReportExporter results={scan.results} phase={scan.phase} />
               </>
             )}
 
-            {currentTab === 'dorking' && <GoogleDorkPanel />}
             {currentTab === 'exploit' && <MsfPanel />}
             {currentTab === 'phish' && <PhishingPanel />}
+            {currentTab === 'c2' && <C2Panel />}
+            {currentTab === 'exfil' && <ExfilPanel />}
           </div>
         </div>
 

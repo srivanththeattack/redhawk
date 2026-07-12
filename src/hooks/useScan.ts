@@ -1,7 +1,9 @@
 import { useEffect, useCallback } from 'react';
 import { useScanStore } from '../store/scan-store';
+import type { ScanResults } from '../types/target';
 
 export function useScan() {
+  const store = useScanStore();
   const {
     target,
     phase,
@@ -12,6 +14,7 @@ export function useScan() {
     depsStatus,
     depsChecking,
     disclaimerAccepted,
+    scanTasks,
     setTarget,
     setPhase,
     addStatusMessage,
@@ -22,7 +25,8 @@ export function useScan() {
     setDepsChecking,
     acceptDisclaimer,
     reset,
-  } = useScanStore();
+    setTaskStatus,
+  } = store;
 
   // Check dependencies on mount
   useEffect(() => {
@@ -45,20 +49,30 @@ export function useScan() {
     const cleanups: (() => void)[] = [];
 
     cleanups.push(
-      window.api.onScanStatus((data) => {
+      window.api.onScanStatus((data: { target: string; message: string }) => {
         addStatusMessage(data.message);
       })
     );
 
     cleanups.push(
-      window.api.onScanOutput((data) => {
+      window.api.onScanOutput((data: string) => {
         appendOutput(data);
       })
     );
 
     cleanups.push(
-      window.api.onScanComplete((data) => {
+      window.api.onScanComplete((data: any) => {
         setResults(data);
+        // Mark all quick-scan tasks as complete
+        const state = useScanStore.getState();
+        const isDomain = state.target.includes('.') && !state.target.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
+        if (isDomain) {
+          state.setTaskStatus('whois', 'complete');
+          state.setTaskStatus('dns', 'complete');
+          state.setTaskStatus('subdomains', 'complete');
+          state.setTaskStatus('emails', 'complete');
+        }
+        state.setTaskStatus('nmap', 'complete');
         addStatusMessage('Scan complete!');
       })
     );
@@ -68,11 +82,57 @@ export function useScan() {
     };
   }, []);
 
+  // Helper: merge partial results into current results state
+  // Uses getState() to avoid stale closures
+  const mergeResults = useCallback((partial: Partial<ScanResults>) => {
+    const state = useScanStore.getState();
+    const current = state.results;
+    if (current) {
+      state.setResults({ ...current, ...partial });
+    } else {
+      state.setResults({
+        target: state.target || 'unknown',
+        timestamp: new Date().toISOString(),
+        ...partial,
+      } as ScanResults);
+    }
+  }, []);
+
+  // Helper: run a task with status tracking
+  const runTask = useCallback(async (
+    taskName: keyof typeof scanTasks,
+    label: string,
+    runner: () => Promise<any>,
+    resultKey: string,
+  ) => {
+    addStatusMessage(`Running ${label}...`);
+    setTaskStatus(taskName, 'running');
+    try {
+      const data = await runner();
+      setTaskStatus(taskName, data?.error ? 'error' : 'complete');
+      mergeResults({ [resultKey]: data } as any);
+    } catch (err: any) {
+      setTaskStatus(taskName, 'error');
+      mergeResults({ [resultKey]: { error: err.message } } as any);
+    }
+  }, []);
+
   const startScan = useCallback(async () => {
     if (!target.trim()) return;
 
     reset();
     setPhase('scanning');
+
+    // Set task statuses so the UI shows them as running
+    const isDomain = target.includes('.') && !target.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
+    if (isDomain) {
+      setTaskStatus('whois', 'running');
+      setTaskStatus('dns', 'running');
+      setTaskStatus('subdomains', 'running');
+      setTaskStatus('emails', 'running');
+    }
+    setTaskStatus('nmap', 'running');
+
     addStatusMessage(`Starting scan on ${target}...`);
 
     try {
@@ -84,28 +144,38 @@ export function useScan() {
   }, [target]);
 
   const runWhois = useCallback(async (domain: string) => {
-    addStatusMessage(`Running WHOIS on ${domain}...`);
-    return window.api.runWhois(domain);
+    await runTask('whois', 'WHOIS lookup',
+      () => window.api.runWhois(domain),
+      'whois',
+    );
   }, []);
 
   const runDnsEnum = useCallback(async (domain: string) => {
-    addStatusMessage(`Enumerating DNS for ${domain}...`);
-    return window.api.runDnsEnum(domain);
+    await runTask('dns', 'DNS enumeration',
+      () => window.api.runDnsEnum(domain),
+      'dns',
+    );
   }, []);
 
   const runSubdomainEnum = useCallback(async (domain: string) => {
-    addStatusMessage(`Finding subdomains for ${domain}...`);
-    return window.api.runSubdomainEnum(domain);
+    await runTask('subdomains', 'subdomain enumeration',
+      () => window.api.runSubdomainEnum(domain),
+      'subdomains',
+    );
   }, []);
 
   const runEmailOsint = useCallback(async (domain: string) => {
-    addStatusMessage(`Looking up emails for ${domain}...`);
-    return window.api.runEmailOsint(domain);
+    await runTask('emails', 'email OSINT',
+      () => window.api.runEmailOsint(domain),
+      'emails',
+    );
   }, []);
 
   const runNmapScan = useCallback(async (ip: string, flags: string) => {
-    addStatusMessage(`Running nmap scan on ${ip}...`);
-    return window.api.runNmapScan(ip, flags);
+    await runTask('nmap', 'nmap scan',
+      () => window.api.runNmapScan(ip, flags),
+      'nmap',
+    );
   }, []);
 
   const loadHistory = useCallback(async () => {
@@ -122,7 +192,6 @@ export function useScan() {
     try {
       const result = await window.api.installDeps(true);
       addStatusMessage(result.success ? 'Dependencies installed!' : 'Some deps failed');
-      // Re-check
       const status = await window.api.checkDeps();
       setDepsStatus(status);
     } catch (err: any) {
@@ -142,6 +211,7 @@ export function useScan() {
     depsStatus,
     depsChecking,
     disclaimerAccepted,
+    scanTasks,
     setTarget,
     acceptDisclaimer,
     startScan,

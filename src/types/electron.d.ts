@@ -35,6 +35,28 @@ export interface RedHawkApi {
   phishGetCredentials: (campaignId: string) => Promise<any>;
   phishDeleteCampaign: (campaignId: string) => Promise<any>;
 
+  // C2 Server
+  c2Start: (config: any) => Promise<any>;
+  c2Stop: () => Promise<any>;
+  c2Status: () => Promise<any>;
+  c2Agents: () => Promise<any>;
+  c2Tasks: (agentId: string) => Promise<any>;
+  c2SendCommand: (agentId: string, command: string) => Promise<any>;
+  c2Broadcast: (command: string) => Promise<any>;
+  c2GeneratePayload: (type: string) => Promise<any>;
+
+  // Exfiltration
+  exfilJobs: () => Promise<any>;
+  exfilCreateJob: (name: string, targetDir: string) => Promise<any>;
+  exfilCollectFiles: (jobId: string) => Promise<any>;
+  exfilScreenshot: () => Promise<any>;
+  exfilBrowserData: () => Promise<any>;
+  exfilPackage: (jobId: string) => Promise<any>;
+  exfilSendToC2: (packagePath: string, c2Url: string) => Promise<any>;
+  exfilTotalSize: () => Promise<any>;
+  exfilKey: () => Promise<any>;
+  exfilClear: () => Promise<any>;
+
   // Results
   getScanResults: (target: string) => Promise<any>;
   getScanHistory: () => Promise<any[]>;

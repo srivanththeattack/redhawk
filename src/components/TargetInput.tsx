@@ -86,10 +86,12 @@ export function TargetInput({ target, onTargetChange, onScan, isScanning }: Targ
           </div>
 
           {/* Scan button */}
+          <div className="relative group/scan">
           <button
             onClick={onScan}
             disabled={!target.trim() || !isValid || isScanning}
             className="btn-primary flex items-center gap-2 h-12 px-6 whitespace-nowrap text-sm"
+            title="Quick scan — runs WHOIS, DNS, Subdomains, Emails (for domains) + Nmap port scan"
           >
             {isScanning ? (
               <>
@@ -113,6 +115,7 @@ export function TargetInput({ target, onTargetChange, onScan, isScanning }: Targ
               </>
             )}
           </button>
+        </div>
         </div>
       </div>
     </div>

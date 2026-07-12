@@ -1,6 +1,24 @@
 import { create } from 'zustand';
 import type { ScanResults, DepsStatus, ScanPhase } from '../types/target';
 
+export type ScanTaskStatus = 'idle' | 'running' | 'complete' | 'error';
+
+export interface ScanTaskState {
+  whois: ScanTaskStatus;
+  dns: ScanTaskStatus;
+  subdomains: ScanTaskStatus;
+  emails: ScanTaskStatus;
+  nmap: ScanTaskStatus;
+}
+
+const DEFAULT_TASK_STATE: ScanTaskState = {
+  whois: 'idle',
+  dns: 'idle',
+  subdomains: 'idle',
+  emails: 'idle',
+  nmap: 'idle',
+};
+
 interface ScanState {
   // Target
   target: string;
@@ -13,6 +31,9 @@ interface ScanState {
   // Results
   results: ScanResults | null;
   history: ScanResults[];
+
+  // Per-scan task status
+  scanTasks: ScanTaskState;
 
   // Dependencies
   depsStatus: DepsStatus | null;
@@ -32,6 +53,9 @@ interface ScanState {
   setDepsChecking: (checking: boolean) => void;
   acceptDisclaimer: () => void;
   reset: () => void;
+
+  // Per-scan task actions
+  setTaskStatus: (task: keyof ScanTaskState, status: ScanTaskStatus) => void;
 }
 
 export const useScanStore = create<ScanState>((set) => ({
@@ -41,6 +65,7 @@ export const useScanStore = create<ScanState>((set) => ({
   scanOutput: '',
   results: null,
   history: [],
+  scanTasks: { ...DEFAULT_TASK_STATE },
   depsStatus: null,
   depsChecking: false,
   disclaimerAccepted: false,
@@ -69,11 +94,17 @@ export const useScanStore = create<ScanState>((set) => ({
 
   acceptDisclaimer: () => set({ disclaimerAccepted: true }),
 
+  setTaskStatus: (task, status) =>
+    set((state) => ({
+      scanTasks: { ...state.scanTasks, [task]: status },
+    })),
+
   reset: () =>
     set({
       phase: 'idle',
       statusMessages: [],
       scanOutput: '',
       results: null,
+      scanTasks: { ...DEFAULT_TASK_STATE },
     }),
 }));

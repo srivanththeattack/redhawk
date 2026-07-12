@@ -17,9 +17,6 @@ const api = {
   runNmapScan: (ip: string, flags: string) => ipcRenderer.invoke('run-nmap-scan', ip, flags),
   runQuickScan: (target: string) => ipcRenderer.invoke('run-quick-scan', target),
 
-  // Google Dorking
-  runGoogleDork: (query: string) => ipcRenderer.invoke('run-google-dork', query),
-
   // Metasploit
   msfConnect: (host: string, port: number, password: string) =>
     ipcRenderer.invoke('msf-connect', host, port, password),
@@ -41,9 +38,34 @@ const api = {
   phishGetCredentials: (campaignId: string) => ipcRenderer.invoke('phish-get-credentials', campaignId),
   phishDeleteCampaign: (campaignId: string) => ipcRenderer.invoke('phish-delete-campaign', campaignId),
 
+  // C2 Server
+  c2Start: (config: any) => ipcRenderer.invoke('c2-start', config),
+  c2Stop: () => ipcRenderer.invoke('c2-stop'),
+  c2Status: () => ipcRenderer.invoke('c2-status'),
+  c2Agents: () => ipcRenderer.invoke('c2-agents'),
+  c2Tasks: (agentId: string) => ipcRenderer.invoke('c2-tasks', agentId),
+  c2SendCommand: (agentId: string, command: string) => ipcRenderer.invoke('c2-send-command', agentId, command),
+  c2Broadcast: (command: string) => ipcRenderer.invoke('c2-broadcast', command),
+  c2GeneratePayload: (type: string) => ipcRenderer.invoke('c2-generate-payload', type),
+
+  // Exfiltration
+  exfilJobs: () => ipcRenderer.invoke('exfil-jobs'),
+  exfilCreateJob: (name: string, targetDir: string) => ipcRenderer.invoke('exfil-create-job', name, targetDir),
+  exfilCollectFiles: (jobId: string) => ipcRenderer.invoke('exfil-collect-files', jobId),
+  exfilScreenshot: () => ipcRenderer.invoke('exfil-screenshot'),
+  exfilBrowserData: () => ipcRenderer.invoke('exfil-browser-data'),
+  exfilPackage: (jobId: string) => ipcRenderer.invoke('exfil-package', jobId),
+  exfilSendToC2: (packagePath: string, c2Url: string) => ipcRenderer.invoke('exfil-send-to-c2', packagePath, c2Url),
+  exfilTotalSize: () => ipcRenderer.invoke('exfil-total-size'),
+  exfilKey: () => ipcRenderer.invoke('exfil-key'),
+  exfilClear: () => ipcRenderer.invoke('exfil-clear'),
+
   // Results
   getScanResults: (target: string) => ipcRenderer.invoke('get-scan-results', target),
   getScanHistory: () => ipcRenderer.invoke('get-scan-history'),
+
+  // Report
+  saveReport: (reportHtml: string) => ipcRenderer.invoke('save-report', reportHtml),
 
   // Event listeners
   onScanOutput: (callback: (data: string) => void) => {

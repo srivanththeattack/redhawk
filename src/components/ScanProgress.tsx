@@ -5,21 +5,18 @@ interface ScanProgressProps {
   phase: ScanPhase;
   messages: string[];
   output: string;
+  collapsible?: boolean;
 }
 
-export function ScanProgress({ phase, messages, output }: ScanProgressProps) {
+export function ScanProgress({ phase, messages, output, collapsible }: ScanProgressProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const outputEndRef = useRef<HTMLDivElement>(null);
+  const [outputOpen, setOutputOpen] = React.useState(!collapsible);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    outputEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [output]);
-
-  if (phase === 'idle') return null;
+  if (phase === 'idle' && messages.length === 0) return null;
 
   return (
     <div className="space-y-3">
@@ -56,16 +53,25 @@ export function ScanProgress({ phase, messages, output }: ScanProgressProps) {
         </div>
       </div>
 
-      {/* Live output */}
+      {/* Live output — collapsible */}
       {output && (
         <div className="card">
-          <div className="card-header">Raw Output</div>
-          <div className="terminal max-h-48 overflow-y-auto">
-            <pre className="text-green-400/80 whitespace-pre-wrap break-all">
-              {output}
-            </pre>
-            <div ref={outputEndRef} />
+          <div className="card-header flex items-center justify-between">
+            <span>Raw Output</span>
+            <button
+              onClick={() => setOutputOpen(!outputOpen)}
+              className="btn-ghost text-xs text-gray-500"
+            >
+              {outputOpen ? '▲ Collapse' : '▼ Expand'}
+            </button>
           </div>
+          {outputOpen && (
+            <div className="terminal max-h-48 overflow-y-auto">
+              <pre className="text-green-400/80 whitespace-pre-wrap break-all">
+                {output}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>

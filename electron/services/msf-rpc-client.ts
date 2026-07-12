@@ -4,11 +4,16 @@
  * Connects to msfrpcd (Metasploit RPC daemon) for exploit management,
  * payload generation, and session control.
  *
- * Start msfrpcd:
- *   msfrpcd -P password -S -f
- *   (Windows: "C:\metasploit\MSP\msfrpcd.exe" -P password -S -f)
+ * ⚠ msfrpcd MUST run inside WSL (Metasploit is Linux-native).
+ *    Windows installs of Metasploit are unreliable, so we use WSL.
  *
- * Default: localhost:55553, password "redhawk"
+ * Start msfrpcd in WSL (⚠ must include -j for JSON mode):
+ *   msfrpcd -P redhawk -S -f -j
+ *
+ * Find the WSL IP (used in the Host field):
+ *   ip addr show eth0 | grep inet
+ *
+ * Default port: 55553, password: "redhawk"
  */
 
 import * as net from 'net';
@@ -122,12 +127,12 @@ export class MsfRpcClient extends EventEmitter {
         this.emit('disconnected');
       });
 
-      // Timeout
+      // Timeout (WSL can be slow, give it 15s)
       setTimeout(() => {
         if (!this.connected) {
-          reject(new Error('Connection timeout'));
+          reject(new Error('Connection timeout. Check that (1) msfrpcd is running in WSL, (2) the IP is correct, and (3) Windows Firewall isn\'t blocking port ' + this.port));
         }
-      }, 5000);
+      }, 15000);
     });
   }
 
@@ -215,9 +220,9 @@ export class MsfRpcClient extends EventEmitter {
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
-          resolve({ token: '', error: 'Auth timeout' });
+          resolve({ token: '', error: 'Auth timeout. Make sure you started msfrpcd with the correct password and the -j flag: msfrpcd -P redhawk -S -f -j' });
         }
-      }, 10000);
+      }, 15000);
     });
   }
 

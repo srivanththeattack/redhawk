@@ -23,7 +23,7 @@ export function Disclaimer({ onAccept }: DisclaimerProps) {
         <div className="bg-midnight-950 rounded-lg p-4 mb-6 text-sm text-gray-300 space-y-3 border border-midnight-700">
           <p>
             <strong className="text-redhawk-400">RedHawk</strong> is an offensive
-            security reconnaissance tool designed for <strong className="text-gray-100">authorized security testing only</strong>.
+            security assessment tool designed for <strong className="text-gray-100">authorized security testing only</strong>.
           </p>
 
           <p>By using this software, you acknowledge and agree that:</p>

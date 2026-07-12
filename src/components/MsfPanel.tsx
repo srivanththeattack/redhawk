@@ -140,10 +140,26 @@ export function MsfPanel() {
           )}
         </div>
 
-        <p className="text-xs text-gray-500 mb-4">
+        <p className="text-xs text-gray-500 mb-2">
           Connect to msfrpcd to search exploits, generate payloads, and manage sessions.
-          Start msfrpcd with: <code className="bg-midnight-950 px-1.5 py-0.5 rounded text-green-400">msfrpcd -P {password} -S -f</code>
         </p>
+        <div className="bg-midnight-950/60 border border-midnight-700/40 rounded-lg px-3 py-2.5 mb-4 space-y-1.5">
+          <p className="text-[11px] text-yellow-400/80 font-medium flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            msfrpcd must run inside WSL
+          </p>
+          <p className="text-[11px] text-gray-500">
+            Start it in WSL: <code className="bg-midnight-900 px-1.5 py-0.5 rounded text-green-400 text-[10px]">msfrpcd -P redhawk -S -f -j</code>
+          </p>
+          <p className="text-[11px] text-gray-500">
+            The <code className="text-yellow-400/80 text-[10px]">-P redhawk</code> sets the password. The <code className="text-yellow-400/80 text-[10px]">-j</code> flag enables JSON mode (required — add it).
+          </p>
+          <p className="text-[11px] text-gray-500">
+            Find your WSL IP: <code className="bg-midnight-900 px-1.5 py-0.5 rounded text-blue-400 text-[10px]">ip addr show eth0 | grep inet</code> — use that in the <strong className="text-gray-400">Host</strong> field.
+          </p>
+        </div>
 
         {/* Connection form */}
         {!connection.connected ? (
@@ -155,7 +171,7 @@ export function MsfPanel() {
                   type="text" value={host}
                   onChange={(e) => setHost(e.target.value)}
                   className="input-field h-9 text-sm font-mono"
-                  placeholder="127.0.0.1"
+                  placeholder="e.g. 172.x.x.x (WSL IP)"
                 />
               </div>
               <div>
@@ -173,7 +189,7 @@ export function MsfPanel() {
                   type="password" value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="input-field h-9 text-sm font-mono"
-                  placeholder="redhawk"
+                  placeholder="redhawk (from -P flag)"
                 />
               </div>
             </div>
@@ -185,12 +201,22 @@ export function MsfPanel() {
               {connecting ? 'Connecting...' : 'Connect to msfrpcd'}
             </button>
             {connection.error && (
-              <p className="text-redhawk-400 text-xs flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {connection.error}
-              </p>
+              <div className="space-y-2">
+                <p className="text-redhawk-400 text-xs flex items-start gap-1.5">
+                  <svg className="w-3 h-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{connection.error}</span>
+                </p>
+                <div className="bg-midnight-950/60 border border-midnight-700/40 rounded-lg px-3 py-2 text-[11px] text-gray-500 space-y-1">
+                  <p className="text-gray-400 font-medium text-[10px] uppercase tracking-wider">Troubleshooting</p>
+                  <p>1. Confirm msfrpcd is running in WSL: <code className="text-green-400 text-[10px]">ps aux | grep msfrpcd</code></p>
+                  <p>2. Check the WSL IP: <code className="text-blue-400 text-[10px]">ip addr show eth0 | grep inet</code></p>
+                  <p>3. Test from Windows: <code className="text-yellow-400/80 text-[10px]">Test-NetConnection {host} -Port {port}</code></p>
+                  <p>4. Make sure you used the <code className="text-yellow-400/80 text-[10px]">-j</code> flag: <code className="text-green-400 text-[10px]">msfrpcd -P redhawk -S -f -j</code></p>
+                  <p>5. msfrpcd should bind to <code className="text-gray-400 text-[10px]">0.0.0.0</code> (you'll see "MSGRPC starting on 0.0.0.0:{port}")</p>
+                </div>
+              </div>
             )}
           </div>
         ) : (

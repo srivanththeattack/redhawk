@@ -1,6 +1,6 @@
 REDHAWK — LEGAL DISCLAIMER
 
-RedHawk is an offensive security reconnaissance tool designed for
+RedHawk is an offensive security assessment tool designed for
 authorized security testing only.
 
 By using this software, you acknowledge and agree that:

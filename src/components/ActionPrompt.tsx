@@ -55,7 +55,7 @@ export function ActionPrompt({ results, actions, onAction }: ActionPromptProps) 
   else if (!hasDns) contextMessage = 'Good. Now enumerate DNS records.';
   else if (!hasPorts) contextMessage = 'DNS done. Run a port scan to find open services.';
   else if (!hasEmails) contextMessage = 'Ports mapped. Try finding associated email addresses.';
-  else contextMessage = 'Good reconnaissance coverage. You can drill deeper on any finding.';
+  else contextMessage = 'Good recon coverage. You can drill deeper on any finding.';
 
   if (availableActions.length === 0) return null;
 
