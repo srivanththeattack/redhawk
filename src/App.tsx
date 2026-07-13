@@ -258,7 +258,6 @@ export default function App() {
       {settingsOpen && (
         <SettingsPanel
           onClose={() => setSettingsOpen(false)}
-          isSplit={split.isSplit}
           onToggleSplit={handleSplitToggle}
           onTabOrderChange={(order) => {
             setTabOrder(order);
