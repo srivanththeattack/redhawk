@@ -201,7 +201,7 @@ export default function App() {
       </header>
 
       {/* ── MOBILE TAB BAR ── */}
-      <div className="md:hidden flex gap-0.5 px-2 pt-2 bg-midnight-950">
+      <div className="md:hidden flex gap-0.5 px-2 pt-2 bg-midnight-950 flex-shrink-0">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -222,7 +222,7 @@ export default function App() {
       </div>
 
       {/* ── MAIN LAYOUT ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Pane content */}
         <SplitPaneContainer
           panes={split.panes}

@@ -67,7 +67,7 @@ export function SplitPaneContainer({ panes, dragging, scan, onRemovePane, onCycl
   // Single pane — no split UI needed
   if (panes.length === 1) {
     return (
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-5xl mx-auto p-6">
           <TabContent tabId={panes[0].tabId} scan={scan} />
         </div>
@@ -123,7 +123,7 @@ export function SplitPaneContainer({ panes, dragging, scan, onRemovePane, onCycl
                 </div>
               </div>
               {/* Pane content */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 <div className="p-4">
                   <TabContent tabId={pane.tabId} scan={scan} />
                 </div>
