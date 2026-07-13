@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { THEMES, loadTheme, saveTheme } from '../theme/themes';
 
 function applyTheme(themeId: string) {
@@ -31,8 +31,12 @@ applyTheme(initialTheme);
 export function ThemePicker() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(initialTheme);
+  const [search, setSearch] = useState('');
 
-  const handleToggle = useCallback(() => setOpen((p) => !p), []);
+  const handleToggle = useCallback(() => {
+    setOpen((p) => !p);
+    setSearch('');
+  }, []);
 
   const handleSelect = useCallback((themeId: string) => {
     setCurrent(themeId);
@@ -54,6 +58,12 @@ export function ThemePicker() {
 
   const currentTheme = THEMES.find((t) => t.id === current);
 
+  const filtered = useMemo(() => {
+    if (!search.trim()) return THEMES;
+    const q = search.toLowerCase();
+    return THEMES.filter((t) => t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q));
+  }, [search]);
+
   return (
     <div data-theme-picker className="relative">
       <button
@@ -68,44 +78,65 @@ export function ThemePicker() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 z-50
+        <div className="absolute right-0 top-full mt-2 w-72 z-50
           bg-midnight-800 border border-midnight-600/50 rounded-xl
-          shadow-2xl shadow-black/50 backdrop-blur-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-midnight-700/50">
-            <span className="text-sm font-medium text-white">Themes</span>
+          shadow-2xl shadow-black/50 backdrop-blur-sm flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-midnight-700/50 flex-shrink-0">
+            <span className="text-sm font-medium text-white">Themes ({filtered.length})</span>
           </div>
 
-          <div className="py-1">
-            {THEMES.map((theme) => (
-              <button
-                key={theme.id}
-                onClick={() => handleSelect(theme.id)}
-                className={`w-full px-4 py-2.5 flex items-center gap-3 text-xs transition-all ${
-                  current === theme.id
-                    ? 'bg-redhawk-600/10 text-redhawk-400'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-midnight-700/30'
-                }`}
-              >
-                <span className="text-base">{theme.icon}</span>
-                <div className="flex-1 text-left">
-                  <p className="font-medium">{theme.name}</p>
-                  <div className="flex gap-1 mt-1">
-                    {[theme.colors.accent, theme.colors.bgCard, theme.colors.textPrimary].map((color, i) => (
-                      <span
-                        key={i}
-                        className="w-3 h-3 rounded-full border border-midnight-600/50"
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
+          {/* Search */}
+          <div className="px-3 py-2 border-b border-midnight-700/50 flex-shrink-0">
+            <div className="relative">
+              <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search themes..."
+                className="w-full pl-7 pr-2 py-1.5 text-xs bg-midnight-900 border border-midnight-600/50 rounded-lg
+                  text-gray-200 placeholder-gray-500 focus:outline-none focus:border-redhawk-500/50"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-72 py-1">
+            {filtered.length === 0 ? (
+              <p className="text-center text-xs text-gray-500 py-6">No themes matching "{search}"</p>
+            ) : (
+              filtered.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => handleSelect(theme.id)}
+                  className={`w-full px-4 py-2.5 flex items-center gap-3 text-xs transition-all ${
+                    current === theme.id
+                      ? 'bg-redhawk-600/10 text-redhawk-400'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-midnight-700/30'
+                  }`}
+                >
+                  <span className="text-base">{theme.icon}</span>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-medium truncate">{theme.name}</p>
+                    <div className="flex gap-1 mt-1">
+                      {[theme.colors.accent, theme.colors.bgCard, theme.colors.textPrimary].map((color, i) => (
+                        <span
+                          key={i}
+                          className="w-3 h-3 rounded-full border border-midnight-600/50 flex-shrink-0"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-                {current === theme.id && (
-                  <svg className="w-4 h-4 text-redhawk-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            ))}
+                  {current === theme.id && (
+                    <svg className="w-4 h-4 text-redhawk-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
