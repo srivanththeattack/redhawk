@@ -1,7 +1,10 @@
 {
   "name": "redhawk",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "RedHawk — Offensive red teaming suite",
+  "author": {
+    "name": "srivanththeattack"
+  },
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",

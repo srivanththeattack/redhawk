@@ -6,7 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [0.1.2] — 2026-07-13
+## [0.1.3] — 2026-07-13
+
+### Added
+
+#### First-Run Quick Start Guide
+- New users see a dismissable welcome guide in the Recon tab with 3 steps: enter a target, hit Launch Scan, explore tabs
+- Target is pre-filled with `example.com` on first launch so users can immediately scan
+- Guide auto-dismisses after the first scan, with a "Got it" button
+- First-run state persisted in localStorage (`redhawk_first_run`)
+
+#### Proper README
+- Complete rewrite with badges, feature table, install instructions, quick start guide, and legal disclaimer
+- Covers all 5 tabs, split panes, kill chain, operations, themes, and scan modes
 
 ### Fixed
 
@@ -18,6 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 #### Kill Chain — Removed "Dorking" Phase
 - Removed the `dorking` entry from the kill chain — the chain now shows: Reconnaissance → Exploitation → Phishing → C2 → Exfiltration
 - Updated `KillChainPhaseId` type, default state, and kill chain bar UI
+
+### Changed
+- Added `author` field to `package.json` (fixes electron-builder warning)
 
 ---
 
@@ -168,6 +183,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+[0.1.3]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.3
 [0.1.2]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.2
 [0.1.1]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.1
 [0.1.0]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.0
