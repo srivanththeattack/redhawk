@@ -126,6 +126,7 @@ export class DependencyChecker {
       `${process.env.USERPROFILE}\\.evilginx\\`,
       `${process.env.ProgramFiles}\\evilginx2\\evilginx2.exe`,
       `${process.env.LOCALAPPDATA}\\Programs\\evilginx2\\evilginx2.exe`,
+      `C:\\cybersec stuff\\evilginx2\\evilginx2.exe`,
     ];
     if (knownPaths.some((p) => fs.existsSync(p))) return true;
 

@@ -53,6 +53,50 @@ export interface NmapResult {
   summary: string;
 }
 
+export interface SslCertInfo {
+  domain: string;
+  subject?: any;
+  issuer?: any;
+  validFrom?: string;
+  validTo?: string;
+  fingerprint?: string;
+  serialNumber?: string;
+  subjectalt?: string[];
+  bits?: number;
+  signatureAlgorithm?: string;
+  error?: string;
+}
+
+export interface HttpHeaderResult {
+  statusCode?: number;
+  statusMessage?: string;
+  headers?: Record<string, any>;
+  httpVersion?: string;
+  error?: string;
+}
+
+export interface WafResult {
+  domain: string;
+  detected: boolean;
+  wafs: string[];
+  probes: any[];
+  possiblyBlocked: boolean;
+  error?: string;
+}
+
+export interface TechResult {
+  domain: string;
+  technologies: string[];
+  headers?: Record<string, any>;
+  error?: string;
+}
+
+export interface DirBruteResult {
+  domain: string;
+  found: { path: string; status: number; size: number }[];
+  total: number;
+}
+
 export interface ScanResults {
   target: string;
   timestamp: string;
@@ -61,6 +105,13 @@ export interface ScanResults {
   subdomains?: { subdomains: string[] } | { error: string };
   emails?: { emails: OsintEmail[] } | { error: string };
   nmap?: NmapResult;
+  ssl?: SslCertInfo | { error: string };
+  httpHeaders?: HttpHeaderResult | { error: string };
+  waf?: WafResult | { error: string };
+  tech?: TechResult | { error: string };
+  dirBrute?: DirBruteResult | { error: string };
+  serviceScan?: NmapResult | { error: string };
+  vulnScan?: NmapResult | { error: string };
   error?: string;
 }
 

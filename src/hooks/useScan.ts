@@ -15,6 +15,7 @@ export function useScan() {
     depsChecking,
     disclaimerAccepted,
     scanTasks,
+    killChain,
     setTarget,
     setPhase,
     addStatusMessage,
@@ -26,6 +27,8 @@ export function useScan() {
     acceptDisclaimer,
     reset,
     setTaskStatus,
+    setKillChainPhase,
+    resetKillChain,
   } = store;
 
   // Check dependencies on mount
@@ -63,6 +66,8 @@ export function useScan() {
     cleanups.push(
       window.api.onScanComplete((data: any) => {
         setResults(data);
+        // Mark recon phase as complete in kill chain
+        setKillChainPhase('recon', 'complete');
         // Mark all quick-scan tasks as complete
         const state = useScanStore.getState();
         const isDomain = state.target.includes('.') && !state.target.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
@@ -178,6 +183,55 @@ export function useScan() {
     );
   }, []);
 
+  const runSslScan = useCallback(async (domain: string) => {
+    await runTask('ssl', 'SSL certificate scan',
+      () => window.api.runSslScan(domain),
+      'ssl',
+    );
+  }, []);
+
+  const runHttpHeaders = useCallback(async (domain: string) => {
+    await runTask('httpHeaders', 'HTTP headers scan',
+      () => window.api.runHttpHeaders(domain),
+      'httpHeaders',
+    );
+  }, []);
+
+  const runWafDetect = useCallback(async (domain: string) => {
+    await runTask('waf', 'WAF detection',
+      () => window.api.runWafDetect(domain),
+      'waf',
+    );
+  }, []);
+
+  const runTechDetect = useCallback(async (domain: string) => {
+    await runTask('tech', 'technology fingerprinting',
+      () => window.api.runTechDetect(domain),
+      'tech',
+    );
+  }, []);
+
+  const runDirBrute = useCallback(async (domain: string) => {
+    await runTask('dirBrute', 'directory bruteforce',
+      () => window.api.runDirBrute(domain),
+      'dirBrute',
+    );
+  }, []);
+
+  const runServiceScan = useCallback(async (ip: string) => {
+    await runTask('serviceScan', 'service version scan',
+      () => window.api.runServiceScan(ip),
+      'serviceScan',
+    );
+  }, []);
+
+  const runVulnScan = useCallback(async (ip: string) => {
+    await runTask('vulnScan', 'vulnerability scan',
+      () => window.api.runVulnScan(ip),
+      'vulnScan',
+    );
+  }, []);
+
   const loadHistory = useCallback(async () => {
     try {
       const h = await window.api.getScanHistory();
@@ -212,6 +266,7 @@ export function useScan() {
     depsChecking,
     disclaimerAccepted,
     scanTasks,
+    killChain,
     setTarget,
     acceptDisclaimer,
     startScan,
@@ -220,8 +275,17 @@ export function useScan() {
     runSubdomainEnum,
     runEmailOsint,
     runNmapScan,
+    runSslScan,
+    runHttpHeaders,
+    runWafDetect,
+    runTechDetect,
+    runDirBrute,
+    runServiceScan,
+    runVulnScan,
     loadHistory,
     installDeps,
     reset,
+    setKillChainPhase,
+    resetKillChain,
   };
 }

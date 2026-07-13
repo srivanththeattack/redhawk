@@ -1,19 +1,14 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useScan } from './hooks/useScan';
+import { useSplitPanes } from './hooks/useSplitPanes';
+import type { TabId } from './hooks/useSplitPanes';
 import { Disclaimer } from './components/Disclaimer';
-import { TargetInput } from './components/TargetInput';
-import { KillChainBar } from './components/KillChainBar';
-import { ResultsPanel } from './components/ResultsPanel';
-import { ScanProgress } from './components/ScanProgress';
-
-import { MsfPanel } from './components/MsfPanel';
-import { PhishingPanel } from './components/PhishingPanel';
-import { C2Panel } from './components/C2Panel';
-import { ExfilPanel } from './components/ExfilPanel';
+import { SplitPaneContainer } from './components/SplitPaneContainer';
 import { UpdateBanner } from './components/UpdateBanner';
-import { ReportExporter } from './components/ReportExporter';
-
-type TabId = 'recon' | 'exploit' | 'phish' | 'c2' | 'exfil';
+import { HelpBanner } from './components/HelpBanner';
+import { OperationsBar } from './components/OperationsBar';
+import { ThemePicker } from './components/ThemePicker';
+import { HistorySidebar } from './components/HistorySidebar';
 
 interface TabDef {
   id: TabId;
@@ -29,17 +24,6 @@ const TABS: TabDef[] = [
   { id: 'c2', label: 'C2', icon: '📡', description: 'Command & control server' },
   { id: 'exfil', label: 'Exfil', icon: '📤', description: 'Data exfiltration' },
 ];
-
-
-
-function StatusIndicator({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <div className="flex items-center gap-1.5" title={`${label}: ${ok ? 'Available' : 'Not found'}`}>
-      <span className={`w-2 h-2 rounded-full ${ok ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.5)]' : 'bg-redhawk-600 shadow-[0_0_6px_rgba(220,38,38,0.5)]'} transition-all duration-300`} />
-      <span className="text-xs text-gray-500 font-medium hidden lg:inline">{label}</span>
-    </div>
-  );
-}
 
 function StatusBar({ phase, target }: { phase: string; target: string }) {
   return (
@@ -59,8 +43,6 @@ function StatusBar({ phase, target }: { phase: string; target: string }) {
         {target && <span className="text-xs text-gray-600 font-mono hidden sm:block">Target: {target}</span>}
       </div>
       <div className="flex items-center gap-3 text-[10px] text-gray-600">
-        <span className="hidden sm:inline">Ctrl+Enter to scan</span>
-        <span className="text-midnight-700">|</span>
         <span>For authorized testing only</span>
       </div>
     </footer>
@@ -69,27 +51,26 @@ function StatusBar({ phase, target }: { phase: string; target: string }) {
 
 export default function App() {
   const scan = useScan();
-  const [currentTab, setCurrentTab] = useState<TabId>('recon');
+  const split = useSplitPanes();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Update kill chain when active tab changes
+  useEffect(() => {
+    const tabToPhase: Record<TabId, string> = {
+      recon: 'recon',
+      exploit: 'exploit',
+      phish: 'phish',
+      c2: 'c2',
+      exfil: 'exfil',
+    };
+    const phase = tabToPhase[split.activeTab];
+    if (phase) {
+      scan.setKillChainPhase(phase as any, 'active');
+    }
+  }, [split.activeTab]);
 
   useEffect(() => {
     scan.loadHistory();
-  }, []);
-
-  // Store refs to scan result sections for scrolling
-  const handleSectionRender = useCallback((id: string, el: HTMLDivElement) => {
-    sectionRefs.current.set(id, el);
-  }, []);
-
-  // Scroll to a section after running a scan
-  const scrollToSection = useCallback((id: string) => {
-    setTimeout(() => {
-      const el = sectionRefs.current.get(id);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 300);
   }, []);
 
   if (!scan.disclaimerAccepted) {
@@ -115,23 +96,54 @@ export default function App() {
             <p className="text-[11px] text-gray-600">Red Teaming Suite</p>
           </div>
 
-          {/* Tab navigation */}
+          {/* Operations selector */}
+          <OperationsBar />
+
+          {/* Tab navigation — each tab can be added as a split pane */}
           <nav className="hidden md:flex items-center gap-1 ml-6 pl-6 border-l border-midnight-800">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setCurrentTab(tab.id)}
-                title={tab.description}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  currentTab === tab.id
-                    ? 'bg-redhawk-600/15 text-redhawk-400 border border-redhawk-600/20'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-midnight-800/50'
-                }`}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
+            {TABS.map((tab) => {
+              const isActive = split.panes.some((p) => p.tabId === tab.id);
+              return (
+                <div key={tab.id} className="flex items-center gap-0 group">
+                  <button
+                    onClick={() => {
+                      // If this tab is already in a pane, focus it; otherwise add/replace
+                      const existing = split.panes.find((p) => p.tabId === tab.id);
+                      if (existing) {
+                        split.setActivePaneId(existing.id);
+                      } else if (split.isSplit) {
+                        // Replace the active pane's tab
+                        split.setPaneTab(split.activePaneId, tab.id);
+                      } else {
+                        // Add as new pane
+                        split.addPane(tab.id);
+                      }
+                    }}
+                    title={tab.description}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-redhawk-600/15 text-redhawk-400 border border-redhawk-600/20'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-midnight-800/50'
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                  {/* Split button — opens this tab in a new side pane */}
+                  {!isActive && (
+                    <button
+                      onClick={() => split.addPane(tab.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-gray-300 p-1"
+                      title={`Open ${tab.label} in split pane`}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </nav>
         </div>
 
@@ -150,6 +162,21 @@ export default function App() {
               Checking...
             </span>
           )}
+          {/* Split mode indicator */}
+          {split.isSplit && (
+            <button
+              onClick={split.collapseToSingle}
+              className="text-[10px] text-gray-500 hover:text-gray-300 flex items-center gap-1 px-2 py-1 rounded"
+              title="Collapse to single pane"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span className="hidden sm:inline">Collapse</span>
+            </button>
+          )}
+          <ThemePicker />
+          <HelpBanner />
           <UpdateBanner />
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -170,9 +197,13 @@ export default function App() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setCurrentTab(tab.id)}
+            onClick={() => {
+              split.panes.length > 0
+                ? split.setPaneTab(split.panes[0].id, tab.id)
+                : split.addPane(tab.id);
+            }}
             className={`flex-1 py-2 rounded-t-lg text-[10px] font-medium transition-all ${
-              currentTab === tab.id
+              split.panes.some((p) => p.tabId === tab.id)
                 ? 'bg-midnight-900 text-redhawk-400 border-t border-l border-r border-midnight-800'
                 : 'text-gray-600 hover:text-gray-400 bg-midnight-950'
             }`}
@@ -184,68 +215,15 @@ export default function App() {
 
       {/* ── MAIN LAYOUT ── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Main content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto p-6 space-y-4">
-            {/* Different content per tab */}
-            {currentTab === 'recon' && (
-              <>
-                <TargetInput
-                  target={scan.target}
-                  onTargetChange={scan.setTarget}
-                  onScan={scan.startScan}
-                  isScanning={scan.phase === 'scanning'}
-                />
-
-                {/* Quick action buttons */}
-                {scan.target && (
-                  <div className="flex flex-wrap gap-1.5">
-                    <button onClick={() => { scan.runWhois(scan.target); scrollToSection('whois'); }}
-                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-blue-700/50">
-                      📋 WHOIS
-                    </button>
-                    <button onClick={() => { scan.runDnsEnum(scan.target); scrollToSection('dns'); }}
-                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-purple-700/50">
-                      🌐 DNS
-                    </button>
-                    <button onClick={() => { scan.runSubdomainEnum(scan.target); scrollToSection('subdomains'); }}
-                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-yellow-700/50">
-                      🌍 Subdomains
-                    </button>
-                    <button onClick={() => { scan.runEmailOsint(scan.target); scrollToSection('emails'); }}
-                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-pink-700/50">
-                      📧 Emails
-                    </button>
-                    <button onClick={() => { scan.runNmapScan(scan.target, '-sS -T4 --top-ports 1000'); scrollToSection('nmap'); }}
-                      className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-green-700/50">
-                      🔍 Port Scan
-                    </button>
-                  </div>
-                )}
-
-                {scan.target && <KillChainBar currentPhase={scan.phase} />}
-                <ScanProgress
-                  phase={scan.phase}
-                  messages={scan.statusMessages}
-                  output={scan.scanOutput}
-                  collapsible={true}
-                />
-                <ResultsPanel
-                  results={scan.results}
-                  phase={scan.phase}
-                  scanTasks={scan.scanTasks}
-                  onSectionRender={handleSectionRender}
-                />
-                <ReportExporter results={scan.results} phase={scan.phase} />
-              </>
-            )}
-
-            {currentTab === 'exploit' && <MsfPanel />}
-            {currentTab === 'phish' && <PhishingPanel />}
-            {currentTab === 'c2' && <C2Panel />}
-            {currentTab === 'exfil' && <ExfilPanel />}
-          </div>
-        </div>
+        {/* Pane content */}
+        <SplitPaneContainer
+          panes={split.panes}
+          dragging={split.dragging}
+          scan={scan}
+          onRemovePane={split.removePane}
+          onCycleTab={split.cyclePaneTab}
+          onStartResize={split.startResize}
+        />
 
         {/* ── HISTORY SIDEBAR ── */}
         <div className={`
@@ -254,59 +232,7 @@ export default function App() {
         `}>
           {sidebarOpen && (
             <aside className="w-80 h-full bg-midnight-900/50 backdrop-blur-sm overflow-y-auto">
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Scan History</h3>
-                  <span className="text-[10px] text-gray-600 bg-midnight-800 px-2 py-0.5 rounded-full">
-                    {scan.history.length}
-                  </span>
-                </div>
-
-                {scan.history.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-gray-600">
-                    <svg className="w-10 h-10 mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-xs">No scans yet</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {scan.history.map((entry: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="group p-3 rounded-lg bg-midnight-800/30 border border-midnight-700/30 cursor-pointer
-                                   hover:bg-midnight-700/40 hover:border-midnight-600/50 transition-all duration-150"
-                        onClick={() => scan.setTarget(entry.target)}
-                      >
-                        <p className="text-sm font-mono text-gray-200 truncate group-hover:text-redhawk-400 transition-colors">
-                          {entry.target}
-                        </p>
-                        <p className="text-[10px] text-gray-600 mt-1.5 font-medium">
-                          {new Date(entry.timestamp).toLocaleString()}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {entry.results?.nmap?.openPortCount > 0 && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-700/40">
-                              {entry.results.nmap.openPortCount} ports
-                            </span>
-                          )}
-                          {entry.results?.whois && !('error' in entry.results.whois) && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/30 text-blue-400 border border-blue-700/40">WHOIS</span>
-                          )}
-                          {entry.results?.dns && !('error' in entry.results.dns) && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-900/30 text-purple-400 border border-purple-700/40">DNS</span>
-                          )}
-                          {entry.results?.subdomains?.count > 0 && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-900/30 text-yellow-400 border border-yellow-700/40">
-                              {entry.results.subdomains.count} subs
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <HistorySidebar currentTab={split.activeTab} scan={scan} />
             </aside>
           )}
         </div>

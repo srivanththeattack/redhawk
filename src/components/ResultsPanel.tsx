@@ -11,6 +11,8 @@ interface ResultsPanelProps {
   scanTasks: ScanTaskState;
   /** Called when a scan section scrolls into view */
   onSectionRender?: (id: string, el: HTMLDivElement) => void;
+  /** Section to prioritize at the top and scroll to */
+  lastRunSection?: string | null;
 }
 
 const STATUS_LABELS: Record<ScanTaskStatus, { label: string; color: string }> = {
@@ -109,7 +111,7 @@ function RawOutput({ data }: { data: any }) {
   );
 }
 
-export function ResultsPanel({ results, phase, scanTasks, onSectionRender }: ResultsPanelProps) {
+export function ResultsPanel({ results, phase, scanTasks, onSectionRender, lastRunSection }: ResultsPanelProps) {
   if (!results) {
     if (phase === 'idle') {
       return (
@@ -128,6 +130,179 @@ export function ResultsPanel({ results, phase, scanTasks, onSectionRender }: Res
   }
 
   const hasError = results.error;
+
+  // Define all scan sections as data
+  const allSections: Array<{
+    id: string;
+    title: string;
+    icon: string;
+    status: ScanTaskStatus;
+    render: () => React.ReactNode;
+  }> = [
+    { id: 'whois', title: 'WHOIS Lookup', icon: '📋', status: scanTasks.whois, render: () => (
+      results.whois ? <WhoisCard data={results.whois} /> : <p className="text-xs text-gray-500">No WHOIS data available.</p>
+    )},
+    { id: 'dns', title: 'DNS Enumeration', icon: '🌐', status: scanTasks.dns, render: () => (
+      results.dns ? <DnsCard data={results.dns} /> : <p className="text-xs text-gray-500">No DNS data available.</p>
+    )},
+    { id: 'subdomains', title: 'Subdomain Enumeration', icon: '🌍', status: scanTasks.subdomains, render: () => {
+      const d = results.subdomains as any;
+      return d && !('error' in d) && d?.subdomains?.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {d.subdomains.map((sub: string, i: number) => (
+            <span key={i} className="badge bg-midnight-800 text-gray-300 border border-midnight-600 text-xs font-mono">{sub}</span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-500">{d && 'error' in d ? d.error || 'Lookup failed.' : 'No subdomains found.'}</p>
+      );
+    }},
+    { id: 'emails', title: 'Email OSINT', icon: '📧', status: scanTasks.emails, render: () => {
+      const d = results.emails as any;
+      return d && !('error' in d) && d?.emails?.length > 0 ? (
+        <div className="space-y-1">
+          {d.emails.map((e: any, i: number) => (
+            <div key={i} className="flex items-center gap-2 text-sm text-gray-300 font-mono">
+              <span className="text-gray-600">📧</span>{e.email}{e.source && <span className="text-xs text-gray-600">({e.source})</span>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-500">{d && 'error' in d ? d.error || 'Lookup failed.' : 'No email addresses found.'}</p>
+      );
+    }},
+    { id: 'nmap', title: 'Port Scan', icon: '🔍', status: scanTasks.nmap, render: () => (
+      results.nmap ? <PortsCard ports={results.nmap.ports} host={results.nmap.host} summary={results.nmap.summary} /> : <p className="text-xs text-gray-500">No port scan data available.</p>
+    )},
+    { id: 'ssl', title: 'SSL Certificate', icon: '🔒', status: scanTasks.ssl, render: () => {
+      const d = results.ssl as any;
+      return d && !('error' in d) ? (
+        <div className="space-y-1.5 text-xs font-mono">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <span className="text-gray-500">Domain:</span><span className="text-gray-300">{d.domain}</span>
+            <span className="text-gray-500">Issuer:</span><span className="text-gray-300">{d.issuer?.O || d.issuer?.CN || 'N/A'}</span>
+            <span className="text-gray-500">Valid From:</span><span className="text-gray-300">{d.validFrom}</span>
+            <span className="text-gray-500">Valid To:</span><span className="text-gray-300">{d.validTo}</span>
+            <span className="text-gray-500">Fingerprint:</span><span className="text-gray-300 text-[10px]">{d.fingerprint}</span>
+            <span className="text-gray-500">Key Bits:</span><span className="text-gray-300">{d.bits}</span>
+            <span className="text-gray-500">Signature:</span><span className="text-gray-300">{d.signatureAlgorithm}</span>
+          </div>
+          {d.subjectalt?.length > 0 && (
+            <div className="mt-2">
+              <p className="text-gray-500 mb-1">Subject Alternative Names:</p>
+              <div className="flex flex-wrap gap-1">
+                {d.subjectalt.map((name: string, i: number) => (
+                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-midnight-800 rounded text-gray-400">{name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : <p className="text-xs text-gray-500">{d?.error || 'No SSL data available.'}</p>;
+    }},
+    { id: 'httpHeaders', title: 'HTTP Headers', icon: '📡', status: scanTasks.httpHeaders, render: () => {
+      const d = results.httpHeaders as any;
+      return d && !('error' in d) ? (
+        <div className="space-y-1">
+          <div className="flex gap-2 text-xs text-gray-500 mb-2">
+            <span>Status: <span className="text-gray-300">{d.statusCode} {d.statusMessage}</span></span>
+            <span>HTTP/{d.httpVersion}</span>
+          </div>
+          <div className="max-h-60 overflow-y-auto space-y-0.5">
+            {Object.entries(d.headers || {}).map(([key, val]: [string, any]) => (
+              <div key={key} className="flex gap-2 text-[10px] font-mono">
+                <span className="text-blue-400 min-w-[120px]">{key}:</span>
+                <span className="text-gray-400 break-all">{Array.isArray(val) ? val.join(', ') : String(val)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : <p className="text-xs text-gray-500">{d?.error || 'No HTTP headers data.'}</p>;
+    }},
+    { id: 'waf', title: 'WAF Detection', icon: '🛡️', status: scanTasks.waf, render: () => {
+      const d = results.waf as any;
+      return d && !('error' in d) ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Status:</span>
+            {d.detected ? <span className="text-xs text-yellow-400 font-medium">⚠️ WAF Detected</span> : <span className="text-xs text-green-400">✅ No WAF detected</span>}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {d.wafs?.map((waf: string, i: number) => (
+              <span key={i} className="text-[10px] px-2 py-1 bg-midnight-800 border border-midnight-700 rounded text-gray-300">{waf}</span>
+            ))}
+          </div>
+          {d.possiblyBlocked && <p className="text-[10px] text-yellow-600">Some probes were blocked (403/406/429) — WAF may be active</p>}
+          <div className="text-[10px] text-gray-500 mt-1">
+            {d.probes?.map((p: any, i: number) => (
+              <span key={i} className="block">Probe {i + 1}: {p.probe} → {p.statusCode} {p.blocked ? '(blocked)' : '(passed)'}</span>
+            ))}
+          </div>
+        </div>
+      ) : <p className="text-xs text-gray-500">{d?.error || 'No WAF data.'}</p>;
+    }},
+    { id: 'tech', title: 'Technology Fingerprint', icon: '⚙️', status: scanTasks.tech, render: () => {
+      const d = results.tech as any;
+      return d && !('error' in d) ? (
+        <div className="flex flex-wrap gap-1.5">
+          {d.technologies?.length > 0 ? d.technologies.map((t: string, i: number) => (
+            <span key={i} className="text-xs px-2 py-0.5 bg-midnight-800 border border-midnight-700 rounded text-gray-300">{t}</span>
+          )) : <p className="text-xs text-gray-500">No technologies detected.</p>}
+        </div>
+      ) : <p className="text-xs text-gray-500">{d?.error || 'No tech data.'}</p>;
+    }},
+    { id: 'dirBrute', title: 'Directory Bruteforce', icon: '📁', status: scanTasks.dirBrute, render: () => {
+      const d = results.dirBrute as any;
+      return d && !('error' in d) ? (
+        <div className="space-y-1.5">
+          <p className="text-[10px] text-gray-500">Found {d.found?.length || 0}/{d.total} paths</p>
+          {d.found?.length > 0 ? (
+            <div className="max-h-48 overflow-y-auto space-y-0.5">
+              {d.found.map((item: any, i: number) => (
+                <div key={i} className="flex gap-3 text-[10px] font-mono">
+                  <span className={item.status === 200 ? 'text-green-400' : item.status === 301 || item.status === 302 ? 'text-yellow-400' : 'text-gray-500'}>[{item.status}]</span>
+                  <span className="text-gray-300">{item.path}</span>
+                  <span className="text-gray-600">{item.size} bytes</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-xs text-gray-500">No interesting paths found.</p>}
+        </div>
+      ) : <p className="text-xs text-gray-500">{d?.error || 'No directory brute data.'}</p>;
+    }},
+    { id: 'serviceScan', title: 'Service Version Scan', icon: '🔬', status: scanTasks.serviceScan, render: () => {
+      const d = results.serviceScan as any;
+      return d && !('error' in d) ? <PortsCard ports={d.ports} host={d.host} summary={d.summary} /> : <p className="text-xs text-gray-500">{d?.error || 'No service scan data.'}</p>;
+    }},
+    { id: 'vulnScan', title: 'Vulnerability Scan', icon: '💀', status: scanTasks.vulnScan, render: () => {
+      const d = results.vulnScan as any;
+      return d && !('error' in d) ? (
+        <div className="space-y-2">
+          {d.ports?.filter((p: any) => p.service?.toLowerCase().includes('vuln') || p.portid === '0')?.length > 0 ? (
+            <div className="space-y-1.5">
+              {d.ports.filter((p: any) => p.portid !== '0').map((port: any, i: number) => (
+                <div key={i} className="p-2 rounded bg-midnight-800/30 border border-midnight-700/30">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-mono text-gray-300">{port.portid}/{port.protocol}</span>
+                    <span className="text-gray-500">{port.service}</span>
+                    {port.product && <span className="text-gray-500">{port.product} {port.version || ''}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-xs text-gray-500">No specific vulnerabilities detected by NSE scripts.</p>}
+          <p className="text-[10px] text-gray-600">This runs nmap --script vuln — results depend on NSE script coverage.</p>
+        </div>
+      ) : <p className="text-xs text-gray-500">{d?.error || 'No vuln scan data.'}</p>;
+    }},
+  ];
+
+  // Sort: last-run section first, then rest in fixed order
+  const sortedSections = [...allSections].sort((a, b) => {
+    if (a.id === lastRunSection) return -1;
+    if (b.id === lastRunSection) return 1;
+    return 0;
+  });
 
   return (
     <div className="space-y-3">
@@ -149,86 +324,16 @@ export function ResultsPanel({ results, phase, scanTasks, onSectionRender }: Res
         </div>
       )}
 
-      {/* ── WHOIS section ── */}
-      <ScanSection id="whois" title="WHOIS Lookup" icon="📋"
-        status={scanTasks.whois} onSectionRender={onSectionRender}>
-        {results.whois ? (
-          <WhoisCard data={results.whois} />
-        ) : (
-          <p className="text-xs text-gray-500">No WHOIS data available.</p>
-        )}
-        <RawOutput data={results.whois} />
-      </ScanSection>
-
-      {/* ── DNS section ── */}
-      <ScanSection id="dns" title="DNS Enumeration" icon="🌐"
-        status={scanTasks.dns} onSectionRender={onSectionRender}>
-        {results.dns ? (
-          <DnsCard data={results.dns} />
-        ) : (
-          <p className="text-xs text-gray-500">No DNS data available.</p>
-        )}
-        <RawOutput data={results.dns} />
-      </ScanSection>
-
-      {/* ── Subdomains section ── */}
-      <ScanSection id="subdomains" title="Subdomain Enumeration" icon="🌍"
-        status={scanTasks.subdomains} onSectionRender={onSectionRender}>
-        {results.subdomains && !('error' in results.subdomains) && results.subdomains.subdomains?.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {results.subdomains.subdomains.map((sub, i) => (
-              <span key={i}
-                className="badge bg-midnight-800 text-gray-300 border border-midnight-600 text-xs font-mono"
-              >{sub}</span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-gray-500">
-            {results.subdomains && 'error' in results.subdomains
-              ? (results.subdomains as any).error || 'Lookup failed.'
-              : 'No subdomains found.'}
-          </p>
-        )}
-        <RawOutput data={results.subdomains} />
-      </ScanSection>
-
-      {/* ── Emails section ── */}
-      <ScanSection id="emails" title="Email OSINT" icon="📧"
-        status={scanTasks.emails} onSectionRender={onSectionRender}>
-        {results.emails && !('error' in results.emails) && results.emails.emails?.length > 0 ? (
-          <div className="space-y-1">
-            {results.emails.emails.map((e, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm text-gray-300 font-mono">
-                <span className="text-gray-600">📧</span>
-                {e.email}
-                {e.source && <span className="text-xs text-gray-600">({e.source})</span>}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-gray-500">
-            {results.emails && 'error' in results.emails
-              ? (results.emails as any).error || 'Lookup failed.'
-              : 'No email addresses found.'}
-          </p>
-        )}
-        <RawOutput data={results.emails} />
-      </ScanSection>
-
-      {/* ── Port scan section ── */}
-      <ScanSection id="nmap" title="Port Scan" icon="🔍"
-        status={scanTasks.nmap} onSectionRender={onSectionRender}>
-        {results.nmap ? (
-          <PortsCard
-            ports={results.nmap.ports}
-            host={results.nmap.host}
-            summary={results.nmap.summary}
-          />
-        ) : (
-          <p className="text-xs text-gray-500">No port scan data available.</p>
-        )}
-        <RawOutput data={results.nmap} />
-      </ScanSection>
+      {/* Render sorted sections, only showing non-idle ones */}
+      {sortedSections.map((section) => (
+        section.status !== 'idle' && (
+          <ScanSection key={section.id} id={section.id} title={section.title} icon={section.icon}
+            status={section.status} onSectionRender={onSectionRender}>
+            {section.render()}
+            <RawOutput data={(results as any)[section.id]} />
+          </ScanSection>
+        )
+      ))}
     </div>
   );
 }

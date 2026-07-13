@@ -72,6 +72,11 @@ export function MsfPanel() {
     try {
       const result = await window.api.msfConnect(host, parseInt(port), password);
       setConnection(result);
+      if (result.connected) {
+        window.api.addActivity({ tab: 'exploit', type: 'connect', label: 'MSF Connected', detail: `${host}:${port}` });
+      } else {
+        window.api.addActivity({ tab: 'exploit', type: 'error', label: 'MSF Connection Failed', detail: result.error || '' });
+      }
     } catch (err: any) {
       setConnection({ connected: false, error: err.message });
     } finally {
@@ -84,6 +89,7 @@ export function MsfPanel() {
     setConnection({ connected: false });
     setExploits([]);
     setSessions([]);
+    window.api.addActivity({ tab: 'exploit', type: 'disconnect', label: 'MSF Disconnected', detail: '' });
   }, []);
 
   const handleSearch = useCallback(async () => {
@@ -107,6 +113,7 @@ export function MsfPanel() {
     try {
       const result = await window.api.msfGeneratePayload(payloadType, lhost, parseInt(lport));
       setPayloadOutput(result || 'Payload generated (check metasploit console)');
+      window.api.addActivity({ tab: 'exploit', type: 'command', label: 'Payload Generated', detail: `${payloadType} → ${lhost}:${lport}` });
     } catch (err: any) {
       setPayloadOutput(`Error: ${err.message}`);
     } finally {

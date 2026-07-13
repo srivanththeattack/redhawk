@@ -7,12 +7,22 @@ interface ScanEntry {
   results: any;
 }
 
+interface ActivityEntry {
+  tab: string;
+  type: string;
+  label: string;
+  detail: string;
+  target?: string;
+  timestamp: string;
+}
+
 interface StoreData {
   currentTarget: string | null;
   scanHistory: ScanEntry[];
+  activityLog: ActivityEntry[];
 }
 
-const DEFAULT_DATA: StoreData = { currentTarget: null, scanHistory: [] };
+const DEFAULT_DATA: StoreData = { currentTarget: null, scanHistory: [], activityLog: [] };
 
 export class TargetStore {
   private dbPath: string;
@@ -74,5 +84,38 @@ export class TargetStore {
 
   async getHistory(): Promise<ScanEntry[]> {
     return this.data.scanHistory;
+  }
+
+  async clearHistory(): Promise<void> {
+    this.data.scanHistory = [];
+    this.save();
+  }
+
+  // ── Activity Log (cross-tab history) ──
+  async addActivity(entry: Omit<ActivityEntry, 'timestamp'>): Promise<void> {
+    this.data.activityLog.unshift({
+      ...entry,
+      timestamp: new Date().toISOString(),
+    });
+    if (this.data.activityLog.length > 200) {
+      this.data.activityLog = this.data.activityLog.slice(0, 200);
+    }
+    this.save();
+  }
+
+  async getActivity(tab?: string): Promise<ActivityEntry[]> {
+    if (tab) {
+      return this.data.activityLog.filter((e) => e.tab === tab);
+    }
+    return this.data.activityLog;
+  }
+
+  async clearActivity(tab?: string): Promise<void> {
+    if (tab) {
+      this.data.activityLog = this.data.activityLog.filter((e) => e.tab !== tab);
+    } else {
+      this.data.activityLog = [];
+    }
+    this.save();
   }
 }

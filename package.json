@@ -1,0 +1,87 @@
+{
+  "name": "redhawk",
+  "version": "0.1.1",
+  "description": "RedHawk — Offensive red teaming suite",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.node.json",
+    "build": "npm run build:renderer && npm run build:electron",
+    "start": "npm run build && electron .",
+    "preview": "vite preview",
+    "package": "npm run build && electron-builder",
+    "setup": "powershell -ExecutionPolicy Bypass -File scripts/install-deps.ps1",
+    "shortcut": "powershell -ExecutionPolicy Bypass -File scripts/create-shortcut.ps1"
+  },
+  "dependencies": {
+    "cross-spawn": "^7.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "xml2js": "^0.6.2",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/xml2js": "^0.4.14",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "electron": "^31.2.0",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.4"
+  },
+  "build": {
+    "appId": "com.redhawk.suite",
+    "publish": {
+      "provider": "github",
+      "owner": "srivanththeattack",
+      "repo": "redhawk"
+    },
+    "productName": "RedHawk",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "scripts",
+        "to": "scripts",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallDisplayName": "RedHawk",
+      "shortcutName": "RedHawk",
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
+    },
+    "asar": true,
+    "asarUnpack": []
+  }
+}

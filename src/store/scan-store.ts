@@ -9,6 +9,13 @@ export interface ScanTaskState {
   subdomains: ScanTaskStatus;
   emails: ScanTaskStatus;
   nmap: ScanTaskStatus;
+  ssl: ScanTaskStatus;
+  httpHeaders: ScanTaskStatus;
+  waf: ScanTaskStatus;
+  tech: ScanTaskStatus;
+  dirBrute: ScanTaskStatus;
+  serviceScan: ScanTaskStatus;
+  vulnScan: ScanTaskStatus;
 }
 
 const DEFAULT_TASK_STATE: ScanTaskState = {
@@ -17,6 +24,28 @@ const DEFAULT_TASK_STATE: ScanTaskState = {
   subdomains: 'idle',
   emails: 'idle',
   nmap: 'idle',
+  ssl: 'idle',
+  httpHeaders: 'idle',
+  waf: 'idle',
+  tech: 'idle',
+  dirBrute: 'idle',
+  serviceScan: 'idle',
+  vulnScan: 'idle',
+};
+
+// Kill chain phase tracking
+export type KillChainPhaseId = 'recon' | 'dorking' | 'exploit' | 'phish' | 'c2' | 'exfil';
+export type KillChainStatus = 'pending' | 'active' | 'complete';
+
+export type KillChainState = Record<KillChainPhaseId, KillChainStatus>;
+
+const DEFAULT_KILL_CHAIN: KillChainState = {
+  recon: 'pending',
+  dorking: 'pending',
+  exploit: 'pending',
+  phish: 'pending',
+  c2: 'pending',
+  exfil: 'pending',
 };
 
 interface ScanState {
@@ -34,6 +63,9 @@ interface ScanState {
 
   // Per-scan task status
   scanTasks: ScanTaskState;
+
+  // Kill chain tracking
+  killChain: KillChainState;
 
   // Dependencies
   depsStatus: DepsStatus | null;
@@ -56,6 +88,19 @@ interface ScanState {
 
   // Per-scan task actions
   setTaskStatus: (task: keyof ScanTaskState, status: ScanTaskStatus) => void;
+
+  // Kill chain actions
+  setKillChainPhase: (phase: KillChainPhaseId, status: KillChainStatus) => void;
+  resetKillChain: () => void;
+}
+
+// Persist disclaimer acceptance so it doesn't reappear after accepting
+function loadDisclaimerAccepted(): boolean {
+  try {
+    return localStorage.getItem('redhawk_disclaimer_accepted') === 'true';
+  } catch {
+    return false;
+  }
 }
 
 export const useScanStore = create<ScanState>((set) => ({
@@ -66,9 +111,10 @@ export const useScanStore = create<ScanState>((set) => ({
   results: null,
   history: [],
   scanTasks: { ...DEFAULT_TASK_STATE },
+  killChain: { ...DEFAULT_KILL_CHAIN },
   depsStatus: null,
   depsChecking: false,
-  disclaimerAccepted: false,
+  disclaimerAccepted: loadDisclaimerAccepted(),
 
   setTarget: (target) => set({ target }),
 
@@ -92,12 +138,22 @@ export const useScanStore = create<ScanState>((set) => ({
 
   setDepsChecking: (checking) => set({ depsChecking: checking }),
 
-  acceptDisclaimer: () => set({ disclaimerAccepted: true }),
+  acceptDisclaimer: () => {
+    try { localStorage.setItem('redhawk_disclaimer_accepted', 'true'); } catch {}
+    set({ disclaimerAccepted: true });
+  },
 
   setTaskStatus: (task, status) =>
     set((state) => ({
       scanTasks: { ...state.scanTasks, [task]: status },
     })),
+
+  setKillChainPhase: (phase, status) =>
+    set((state) => ({
+      killChain: { ...state.killChain, [phase]: status },
+    })),
+
+  resetKillChain: () => set({ killChain: { ...DEFAULT_KILL_CHAIN } }),
 
   reset: () =>
     set({

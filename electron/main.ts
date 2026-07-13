@@ -1,11 +1,15 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as tls from 'tls';
+import * as http from 'http';
+import * as https from 'https';
 import { ToolRunner } from './services/tool-runner';
 import { NmapParser } from './services/nmap-parser';
 import { PythonRunner } from './services/python-runner';
 import { DependencyChecker } from './services/dependency';
 import { TargetStore } from './services/target-store';
+import { OperationsManager } from './services/operations-manager';
 import { MsfRpcClient } from './services/msf-rpc-client';
 import { EvilginxManager } from './services/evilginx-manager';
 import { C2Server } from './services/c2-server';
@@ -18,12 +22,16 @@ let nmapParser: NmapParser;
 let pythonRunner: PythonRunner;
 let depChecker: DependencyChecker;
 let targetStore: TargetStore;
+let operationsManager: OperationsManager;
 let msfClient: MsfRpcClient;
 let evilginxManager: EvilginxManager;
 let c2Server: C2Server;
 let exfilManager: ExfilManager;
 
 function createWindow() {
+  // Remove the default Electron menu bar (File, Edit, View, Window, Help)
+  Menu.setApplicationMenu(null);
+
   try {
     mainWindow = new BrowserWindow({
       width: 1280,
@@ -60,6 +68,47 @@ function createWindow() {
 }
 
 function registerIpcHandlers() {
+  // ── Operations Management ──
+  ipcMain.handle('op-list', async () => {
+    return operationsManager.listOperations();
+  });
+
+  ipcMain.handle('op-get-current', async () => {
+    return operationsManager.getCurrentOperation();
+  });
+
+  ipcMain.handle('op-get', async (_event, id: string) => {
+    return operationsManager.getOperation(id);
+  });
+
+  ipcMain.handle('op-create', async (_event, name: string, description: string) => {
+    return operationsManager.createOperation(name, description);
+  });
+
+  ipcMain.handle('op-set-current', async (_event, id: string) => {
+    await operationsManager.setCurrentOperation(id);
+    return { success: true };
+  });
+
+  ipcMain.handle('op-update', async (_event, id: string, updates: any) => {
+    return operationsManager.updateOperation(id, updates);
+  });
+
+  ipcMain.handle('op-add-target', async (_event, id: string, target: string) => {
+    await operationsManager.addTargetToOperation(id, target);
+    return { success: true };
+  });
+
+  ipcMain.handle('op-delete', async (_event, id: string) => {
+    await operationsManager.deleteOperation(id);
+    return { success: true };
+  });
+
+  ipcMain.handle('op-archive', async (_event, id: string) => {
+    await operationsManager.archiveOperation(id);
+    return { success: true };
+  });
+
   // ── Target Management ──
   ipcMain.handle('set-target', async (_event, target: string) => {
     return targetStore.setTarget(target);
@@ -101,6 +150,202 @@ function registerIpcHandlers() {
     return nmapParser.parse(rawXml);
   });
 
+  ipcMain.handle('run-ssl-scan', async (_event, domain: string) => {
+    try {
+      const cert = await new Promise<any>((resolve, reject) => {
+        const socket = tls.connect(443, domain, { servername: domain, rejectUnauthorized: false }, () => {
+          const c = socket.getPeerCertificate();
+          const rawSubjectAlt = (c as any).subjectalt || (c as any).subjectaltname || '';
+          socket.end();
+          resolve({
+            subject: c.subject,
+            issuer: c.issuer,
+            validFrom: c.valid_from,
+            validTo: c.valid_to,
+            fingerprint: c.fingerprint,
+            serialNumber: c.serialNumber,
+            subjectalt: rawSubjectAlt ? String(rawSubjectAlt).replace(/DNS:/g, '').split(/,\s*/).filter(Boolean) : [],
+            bits: c.bits,
+            signatureAlgorithm: (c as any).sigalg || (c as any).signatureAlgorithm || '',
+          });
+        });
+        socket.on('error', reject);
+        setTimeout(() => { socket.destroy(); reject(new Error('Timeout')); }, 10000);
+      });
+      return { domain, ...cert };
+    } catch (err: any) {
+      return { domain, error: err.message };
+    }
+  });
+
+  ipcMain.handle('run-http-headers', async (_event, domain: string) => {
+    try {
+      const url = domain.startsWith('http') ? domain : `https://${domain}`;
+      const headers = await new Promise<any>((resolve, reject) => {
+        const client = url.startsWith('https') ? https : http;
+        client.get(url, { timeout: 10000, rejectUnauthorized: false }, (res) => {
+          resolve({
+            statusCode: res.statusCode,
+            statusMessage: res.statusMessage,
+            headers: res.headers,
+            httpVersion: res.httpVersion,
+          });
+          res.resume();
+        }).on('error', reject);
+      });
+      return headers;
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  });
+
+  ipcMain.handle('run-waf-detect', async (_event, domain: string) => {
+    try {
+      const url = `https://${domain}`;
+      const probes = [
+        { name: 'XSS probe', path: '/?q=<script>alert(1)</script>' },
+        { name: 'SQLi probe', path: "/?id=1' OR '1'='1" },
+        { name: 'Path traversal', path: '/../../../etc/passwd' },
+      ];
+      const results: any[] = [];
+      for (const probe of probes) {
+        const resp = await new Promise<any>((resolve) => {
+          https.get(url + probe.path, { timeout: 8000, rejectUnauthorized: false }, (res) => {
+            resolve({
+              statusCode: res.statusCode,
+              blocked: res.statusCode === 403 || res.statusCode === 406 || res.statusCode === 429,
+              headers: {
+                server: res.headers['server'],
+                x_powered_by: res.headers['x-powered-by'],
+                cf_ray: res.headers['cf-ray'],
+                x_sucuri_id: res.headers['x-sucuri-id'],
+                x_akamai: res.headers['x-akamai'] || res.headers['x-akamai-transformed'],
+              },
+            });
+            res.resume();
+          }).on('error', () => resolve({ statusCode: 0, blocked: false, headers: {} }));
+        });
+        results.push({ probe: probe.name, ...resp });
+      }
+      const wafHeaders = ['cf-ray', 'x-sucuri-id', 'x-akamai', 'x-powered-by', 'server'];
+      const detectedWafs = results.map(r => {
+        if (r.headers?.cf_ray) return 'Cloudflare';
+        if (r.headers?.x_sucuri_id) return 'Sucuri';
+        if (r.headers?.x_akamai) return 'Akamai';
+        if (r.headers?.server?.includes('cloudflare')) return 'Cloudflare';
+        if (r.headers?.server?.includes('Akamai')) return 'Akamai';
+        return null;
+      }).filter(Boolean);
+      const uniqueWafs = [...new Set(detectedWafs)];
+      return {
+        domain,
+        detected: uniqueWafs.length > 0,
+        wafs: uniqueWafs.length > 0 ? uniqueWafs : ['None detected'],
+        probes: results,
+        possiblyBlocked: results.some(r => r.blocked),
+      };
+    } catch (err: any) {
+      return { domain, error: err.message, detected: false, wafs: ['Unknown'] };
+    }
+  });
+
+  ipcMain.handle('run-tech-detect', async (_event, domain: string) => {
+    try {
+      const url = `https://${domain}`;
+      const resp = await new Promise<any>((resolve) => {
+        https.get(url, { timeout: 10000, rejectUnauthorized: false }, (res) => {
+          let body = '';
+          res.on('data', (chunk: string) => body += chunk);
+          res.on('end', () => resolve({ headers: res.headers, body: body.slice(0, 50000), status: res.statusCode }));
+        }).on('error', () => resolve({ headers: {}, body: '', status: 0 }));
+      });
+      const techs: string[] = [];
+      const h = resp.headers;
+      const b = resp.body;
+
+      // Server header
+      if (h['server']) techs.push(`Server: ${h['server']}`);
+      if (h['x-powered-by']) techs.push(`Powered by: ${h['x-powered-by']}`);
+      if (h['x-generator']) techs.push(`Generator: ${h['x-generator']}`);
+      if (h['x-aspnet-version']) techs.push(`ASP.NET v${h['x-aspnet-version']}`);
+      if (h['x-aspnetmvc-version']) techs.push(`ASP.NET MVC v${h['x-aspnetmvc-version']}`);
+
+      // Frameworks / CMS
+      if (b.includes('wp-content') || b.includes('wp-json')) techs.push('WordPress');
+      if (b.includes('Drupal.settings')) techs.push('Drupal');
+      if (b.includes('Shopify')) techs.push('Shopify');
+      if (b.includes('Joomla')) techs.push('Joomla');
+      if (b.includes('nginx')) techs.push('Nginx');
+      if (b.includes('cloudflare')) techs.push('Cloudflare');
+
+      // JavaScript frameworks
+      if (b.includes('react') || b.includes('React')) techs.push('React');
+      if (b.includes('vue')) techs.push('Vue.js');
+      if (b.includes('angular')) techs.push('Angular');
+      if (b.includes('jQuery') || b.includes('jquery')) techs.push('jQuery');
+      if (b.includes('next-') || b.includes('__NEXT_DATA__')) techs.push('Next.js');
+
+      // Analytics
+      if (b.includes('gtag') || b.includes('google-analytics')) techs.push('Google Analytics');
+      if (b.includes('fbq') || b.includes('facebook-pixel')) techs.push('Facebook Pixel');
+
+      return { domain, technologies: [...new Set(techs)], headers: h };
+    } catch (err: any) {
+      return { domain, error: err.message, technologies: [] };
+    }
+  });
+
+  ipcMain.handle('run-dir-brute', async (_event, domain: string, wordlist?: string[]) => {
+    const commonDirs = wordlist || [
+      'admin', 'login', 'wp-admin', 'wp-content', 'wp-includes', 'backup', 'backups',
+      'config', 'db', 'database', 'sql', 'dump', 'uploads', 'files', 'assets',
+      'api', 'v1', 'v2', 'graphql', 'rest', 'server-status', '.git', '.env',
+      'phpinfo.php', 'info.php', 'test.php', 'shell.php', 'xmlrpc.php',
+      'robots.txt', 'sitemap.xml', 'crossdomain.xml', '.well-known/',
+      'wp-json', 'wp-login.php', 'administrator', 'panel', 'cpanel',
+      'install', 'setup', 'debug', 'logs', 'error_log', 'tmp', 'temp',
+    ];
+    const found: { path: string; status: number; size: number }[] = [];
+    let remaining = commonDirs.length;
+    for (const dir of commonDirs) {
+      try {
+        const url = `https://${domain}/${dir}`;
+        const result = await new Promise<any>((resolve) => {
+          const req = https.get(url, { timeout: 5000, rejectUnauthorized: false }, (res) => {
+            let body = '';
+            res.on('data', (d: string) => body += d);
+            res.on('end', () => resolve({ status: res.statusCode, size: body.length }));
+          });
+          req.on('error', () => resolve({ status: 0, size: 0 }));
+          setTimeout(() => { req.destroy(); resolve({ status: 0, size: 0 }); }, 5000);
+        });
+        if (result.status && result.status !== 404 && result.status !== 0) {
+          found.push({ path: `/${dir}`, status: result.status, size: result.size });
+        }
+      } catch { /* skip */ }
+      mainWindow?.webContents.send('scan-status', { target: domain, message: `Dir brute: ${--remaining} remaining` });
+    }
+    return { domain, found: found.sort((a, b) => a.path.localeCompare(b.path)), total: commonDirs.length };
+  });
+
+  ipcMain.handle('run-service-scan', async (_event, ip: string) => {
+    try {
+      const rawXml = await toolRunner.runNmap(ip, '-sV -T4 --top-ports 1000 --version-intensity 5');
+      return nmapParser.parse(rawXml);
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  });
+
+  ipcMain.handle('run-vuln-scan', async (_event, ip: string) => {
+    try {
+      const rawXml = await toolRunner.runNmap(ip, '-sV -T4 --script vuln --script-timeout 120s');
+      return nmapParser.parse(rawXml);
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  });
+
   // ── Quick Scan ──
   ipcMain.handle('run-quick-scan', async (_event, target: string) => {
     const isDomain = target.includes('.') && !target.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
@@ -137,6 +382,11 @@ function registerIpcHandlers() {
     }
 
     targetStore.addScanResult(target, results);
+    // Associate this target with the current operation
+    const currentOp = await operationsManager.getCurrentOperation();
+    if (currentOp) {
+      await operationsManager.addTargetToOperation(currentOp.id, target);
+    }
     mainWindow?.webContents.send('scan-complete', results);
     return results;
   });
@@ -148,6 +398,26 @@ function registerIpcHandlers() {
 
   ipcMain.handle('get-scan-history', async () => {
     return targetStore.getHistory();
+  });
+
+  ipcMain.handle('clear-scan-history', async () => {
+    await targetStore.clearHistory();
+    return { success: true };
+  });
+
+  // ── Activity Log (cross-tab history) ──
+  ipcMain.handle('add-activity', async (_event, entry: any) => {
+    await targetStore.addActivity(entry);
+    return { success: true };
+  });
+
+  ipcMain.handle('get-activity', async (_event, tab?: string) => {
+    return targetStore.getActivity(tab);
+  });
+
+  ipcMain.handle('clear-activity', async (_event, tab?: string) => {
+    await targetStore.clearActivity(tab);
+    return { success: true };
   });
 
   // ── Metasploit RPC ──
@@ -282,8 +552,15 @@ function registerIpcHandlers() {
     return exfilManager.getJobs();
   });
 
-  ipcMain.handle('exfil-create-job', async (_event, name: string, targetDir: string) => {
-    return exfilManager.createFileCollectionJob(name, targetDir, ['*']);
+  ipcMain.handle('exfil-create-job', async (_event, name: string, targetDir: string,
+    compression?: string, encryptionAlgo?: string, destination?: string, destinationUrl?: string) => {
+    return exfilManager.createFileCollectionJob(
+      name, targetDir, ['*'], true,
+      (compression as any) || 'max',
+      (encryptionAlgo as any) || 'aes-256-gcm',
+      (destination as any) || 'local',
+      destinationUrl || '',
+    );
   });
 
   ipcMain.handle('exfil-collect-files', async (_event, jobId: string) => {
@@ -302,8 +579,25 @@ function registerIpcHandlers() {
     return exfilManager.packageData(jobId);
   });
 
-  ipcMain.handle('exfil-send-to-c2', async (_event, packagePath: string, c2Url: string) => {
-    return exfilManager.exfiltrateToC2(packagePath, c2Url);
+  ipcMain.handle('exfil-exfiltrate', async (_event, jobId: string) => {
+    return exfilManager.exfiltrateData(jobId);
+  });
+
+  ipcMain.handle('exfil-update-destination', async (_event, jobId: string, destination: string, url: string) => {
+    return exfilManager.updateJobDestination(jobId, destination as any, url);
+  });
+
+  ipcMain.handle('exfil-update-encryption', async (_event, jobId: string, algo: string) => {
+    return exfilManager.updateJobEncryption(jobId, algo as any);
+  });
+
+  ipcMain.handle('exfil-update-compression', async (_event, jobId: string, level: string) => {
+    return exfilManager.updateJobCompression(jobId, level as any);
+  });
+
+  ipcMain.handle('exfil-set-key', async (_event, keyHex: string) => {
+    exfilManager.setEncryptionKey(keyHex);
+    return { success: true };
   });
 
   ipcMain.handle('exfil-total-size', async () => {
@@ -343,6 +637,139 @@ function registerIpcHandlers() {
     }
   });
 
+  // ── Operation Report ──
+  ipcMain.handle('op-report', async (_event, operationId: string) => {
+    if (!mainWindow) return { success: false, error: 'No window' };
+
+    const op = await operationsManager.getOperation(operationId);
+    if (!op) return { success: false, error: 'Operation not found' };
+
+    // Collect all data associated with this operation
+    const targets = op.targets || [];
+    const history = await targetStore.getHistory();
+    const opHistory = history.filter((h) => targets.includes(h.target));
+
+    // Build HTML report
+    const targetRows = targets.map((t) =>
+      `<tr><td style="font-family:monospace">${t.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td></tr>`
+    ).join('');
+
+    const scanRows = opHistory.map((entry) => {
+      const results = entry.results || {};
+      const hasWhois = results.whois && !('error' in results.whois);
+      const hasDns = results.dns && !('error' in results.dns);
+      const hasNmap = results.nmap;
+      const portCount = results.nmap?.openPortCount || 0;
+      const subCount = results.subdomains?.count || 0;
+      return `<tr>
+        <td style="font-family:monospace">${entry.target}</td>
+        <td>${new Date(entry.timestamp).toLocaleString()}</td>
+        <td>${hasWhois ? '✅' : '❌'}</td>
+        <td>${hasDns ? '✅' : '❌'}</td>
+        <td>${hasNmap ? `${portCount} open` : '❌'}</td>
+        <td>${subCount > 0 ? `${subCount} found` : '❌'}</td>
+      </tr>`;
+    }).join('');
+
+    const activityEntries = opHistory.map((entry) =>
+      `<div class="entry">
+        <span class="time">${new Date(entry.timestamp).toLocaleString()}</span>
+        <span class="tag">scan</span>
+        <span>Scanned <strong>${entry.target}</strong></span>
+      </div>`
+    ).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Operation Report — ${op.name}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e1a; color: #c8d0e0; padding: 40px; line-height: 1.6;
+    }
+    .header {
+      text-align: center; padding: 30px; background: linear-gradient(135deg, #1a1040, #0d1b2a);
+      border-radius: 12px; border: 1px solid #1e2a45; margin-bottom: 30px;
+    }
+    .header h1 { font-size: 24px; color: #ff4455; margin-bottom: 8px; }
+    .header .meta { color: #6b7a8f; font-size: 13px; }
+    .section {
+      background: #0f1525; border: 1px solid #1a2440; border-radius: 10px;
+      padding: 20px 24px; margin-bottom: 16px;
+    }
+    .section h2 { font-size: 16px; color: #ff6677; border-bottom: 1px solid #1a2440; padding-bottom: 8px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 10px; background: #141c30; color: #8899bb; border-bottom: 1px solid #1a2440; }
+    td { padding: 6px 10px; border-bottom: 1px solid #141c30; }
+    .label { color: #6b7a8f; font-weight: 500; }
+    .entry { padding: 6px 0; border-bottom: 1px solid #141c30; font-size: 12px; display: flex; gap: 8px; }
+    .time { color: #6b7a8f; white-space: nowrap; }
+    .tag { font-size: 9px; padding: 1px 6px; border-radius: 4px; background: #1a2440; color: #8899bb; }
+    .notes { white-space: pre-wrap; font-size: 12px; color: #a0b0c8; }
+    .footer { text-align: center; color: #3a4a5a; font-size: 11px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🗂️ Operation Report</h1>
+    <div class="meta" style="font-size:18px;color:#e0e8f0;margin:8px 0">${op.name}</div>
+    <div class="meta">${op.description || ''}</div>
+    <div class="meta">Created: ${new Date(op.createdAt).toLocaleString()} · Status: ${op.status}</div>
+  </div>
+
+  <div class="section">
+    <h2>🎯 Targets (${targets.length})</h2>
+    <table>${targetRows || '<tr><td class="empty">No targets</td></tr>'}</table>
+  </div>
+
+  <div class="section">
+    <h2>🔍 Scan Results (${opHistory.length})</h2>
+    <table>
+      <tr><th>Target</th><th>Date</th><th>WHOIS</th><th>DNS</th><th>Ports</th><th>Subs</th></tr>
+      ${scanRows || '<tr><td colspan="6" class="empty" style="color:#4a5568">No scan data</td></tr>'}
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>📋 Activity Log</h2>
+    ${activityEntries || '<div class="empty" style="color:#4a5568">No activity recorded</div>'}
+  </div>
+
+  <div class="section">
+    <h2>📝 Notes</h2>
+    <div class="notes">${op.notes || 'No notes added yet.'}</div>
+  </div>
+
+  <div class="footer">
+    Generated by RedHawk v0.1.1 — Red Teaming Suite
+  </div>
+</body>
+</html>`;
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save Operation Report',
+      defaultPath: `RedHawk_Operation_${op.name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.html`,
+      filters: [
+        { name: 'HTML Report', extensions: ['html'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, error: 'Cancelled' };
+    }
+
+    try {
+      fs.writeFileSync(result.filePath, html, 'utf-8');
+      return { success: true, filePath: result.filePath };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
   // ── Live output ──
   toolRunner.onOutput((data: string) => {
     mainWindow?.webContents.send('scan-output', data);
@@ -366,6 +793,7 @@ app.whenReady().then(() => {
     pythonRunner = new PythonRunner(userDataPath, app.isPackaged);
     depChecker = new DependencyChecker(userDataPath);
     targetStore = new TargetStore(userDataPath);
+    operationsManager = new OperationsManager(userDataPath);
     msfClient = new MsfRpcClient();
     evilginxManager = new EvilginxManager(userDataPath);
     c2Server = new C2Server();

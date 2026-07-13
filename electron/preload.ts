@@ -1,6 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 const api = {
+  // Operations
+  opList: () => ipcRenderer.invoke('op-list'),
+  opGetCurrent: () => ipcRenderer.invoke('op-get-current'),
+  opGet: (id: string) => ipcRenderer.invoke('op-get', id),
+  opCreate: (name: string, description: string) => ipcRenderer.invoke('op-create', name, description),
+  opSetCurrent: (id: string) => ipcRenderer.invoke('op-set-current', id),
+  opUpdate: (id: string, updates: any) => ipcRenderer.invoke('op-update', id, updates),
+  opAddTarget: (id: string, target: string) => ipcRenderer.invoke('op-add-target', id, target),
+  opDelete: (id: string) => ipcRenderer.invoke('op-delete', id),
+  opArchive: (id: string) => ipcRenderer.invoke('op-archive', id),
+
   // Target
   setTarget: (target: string) => ipcRenderer.invoke('set-target', target),
   getTarget: () => ipcRenderer.invoke('get-target'),
@@ -16,6 +27,13 @@ const api = {
   runEmailOsint: (domain: string) => ipcRenderer.invoke('run-email-osint', domain),
   runNmapScan: (ip: string, flags: string) => ipcRenderer.invoke('run-nmap-scan', ip, flags),
   runQuickScan: (target: string) => ipcRenderer.invoke('run-quick-scan', target),
+  runSslScan: (domain: string) => ipcRenderer.invoke('run-ssl-scan', domain),
+  runHttpHeaders: (domain: string) => ipcRenderer.invoke('run-http-headers', domain),
+  runWafDetect: (domain: string) => ipcRenderer.invoke('run-waf-detect', domain),
+  runTechDetect: (domain: string) => ipcRenderer.invoke('run-tech-detect', domain),
+  runDirBrute: (domain: string, wordlist?: string[]) => ipcRenderer.invoke('run-dir-brute', domain, wordlist),
+  runServiceScan: (ip: string) => ipcRenderer.invoke('run-service-scan', ip),
+  runVulnScan: (ip: string) => ipcRenderer.invoke('run-vuln-scan', ip),
 
   // Metasploit
   msfConnect: (host: string, port: number, password: string) =>
@@ -50,12 +68,20 @@ const api = {
 
   // Exfiltration
   exfilJobs: () => ipcRenderer.invoke('exfil-jobs'),
-  exfilCreateJob: (name: string, targetDir: string) => ipcRenderer.invoke('exfil-create-job', name, targetDir),
+  exfilCreateJob: (name: string, targetDir: string, compression?: string, encryptionAlgo?: string, destination?: string, destinationUrl?: string) =>
+    ipcRenderer.invoke('exfil-create-job', name, targetDir, compression, encryptionAlgo, destination, destinationUrl),
   exfilCollectFiles: (jobId: string) => ipcRenderer.invoke('exfil-collect-files', jobId),
   exfilScreenshot: () => ipcRenderer.invoke('exfil-screenshot'),
   exfilBrowserData: () => ipcRenderer.invoke('exfil-browser-data'),
   exfilPackage: (jobId: string) => ipcRenderer.invoke('exfil-package', jobId),
-  exfilSendToC2: (packagePath: string, c2Url: string) => ipcRenderer.invoke('exfil-send-to-c2', packagePath, c2Url),
+  exfilExfiltrate: (jobId: string) => ipcRenderer.invoke('exfil-exfiltrate', jobId),
+  exfilUpdateDestination: (jobId: string, destination: string, url: string) =>
+    ipcRenderer.invoke('exfil-update-destination', jobId, destination, url),
+  exfilUpdateEncryption: (jobId: string, algo: string) =>
+    ipcRenderer.invoke('exfil-update-encryption', jobId, algo),
+  exfilUpdateCompression: (jobId: string, level: string) =>
+    ipcRenderer.invoke('exfil-update-compression', jobId, level),
+  exfilSetKey: (keyHex: string) => ipcRenderer.invoke('exfil-set-key', keyHex),
   exfilTotalSize: () => ipcRenderer.invoke('exfil-total-size'),
   exfilKey: () => ipcRenderer.invoke('exfil-key'),
   exfilClear: () => ipcRenderer.invoke('exfil-clear'),
@@ -63,9 +89,16 @@ const api = {
   // Results
   getScanResults: (target: string) => ipcRenderer.invoke('get-scan-results', target),
   getScanHistory: () => ipcRenderer.invoke('get-scan-history'),
+  clearScanHistory: () => ipcRenderer.invoke('clear-scan-history'),
+
+  // Activity log
+  addActivity: (entry: any) => ipcRenderer.invoke('add-activity', entry),
+  getActivity: (tab?: string) => ipcRenderer.invoke('get-activity', tab),
+  clearActivity: (tab?: string) => ipcRenderer.invoke('clear-activity', tab),
 
   // Report
   saveReport: (reportHtml: string) => ipcRenderer.invoke('save-report', reportHtml),
+  opReport: (operationId: string) => ipcRenderer.invoke('op-report', operationId),
 
   // Event listeners
   onScanOutput: (callback: (data: string) => void) => {

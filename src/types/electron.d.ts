@@ -1,4 +1,15 @@
 export interface RedHawkApi {
+  // Operations
+  opList: () => Promise<any[]>;
+  opGetCurrent: () => Promise<any | null>;
+  opGet: (id: string) => Promise<any | null>;
+  opCreate: (name: string, description: string) => Promise<any>;
+  opSetCurrent: (id: string) => Promise<{ success: boolean }>;
+  opUpdate: (id: string, updates: any) => Promise<any | null>;
+  opAddTarget: (id: string, target: string) => Promise<{ success: boolean }>;
+  opDelete: (id: string) => Promise<{ success: boolean }>;
+  opArchive: (id: string) => Promise<{ success: boolean }>;
+
   // Target
   setTarget: (target: string) => Promise<{ success: boolean; target: string }>;
   getTarget: () => Promise<string | null>;
@@ -14,6 +25,13 @@ export interface RedHawkApi {
   runEmailOsint: (domain: string) => Promise<any>;
   runNmapScan: (ip: string, flags: string) => Promise<any>;
   runQuickScan: (target: string) => Promise<any>;
+  runSslScan: (domain: string) => Promise<any>;
+  runHttpHeaders: (domain: string) => Promise<any>;
+  runWafDetect: (domain: string) => Promise<any>;
+  runTechDetect: (domain: string) => Promise<any>;
+  runDirBrute: (domain: string, wordlist?: string[]) => Promise<any>;
+  runServiceScan: (ip: string) => Promise<any>;
+  runVulnScan: (ip: string) => Promise<any>;
 
   // Google Dorking
   runGoogleDork: (query: string) => Promise<any>;
@@ -47,12 +65,16 @@ export interface RedHawkApi {
 
   // Exfiltration
   exfilJobs: () => Promise<any>;
-  exfilCreateJob: (name: string, targetDir: string) => Promise<any>;
+  exfilCreateJob: (name: string, targetDir: string, compression?: string, encryptionAlgo?: string, destination?: string, destinationUrl?: string) => Promise<any>;
   exfilCollectFiles: (jobId: string) => Promise<any>;
   exfilScreenshot: () => Promise<any>;
   exfilBrowserData: () => Promise<any>;
   exfilPackage: (jobId: string) => Promise<any>;
-  exfilSendToC2: (packagePath: string, c2Url: string) => Promise<any>;
+  exfilExfiltrate: (jobId: string) => Promise<any>;
+  exfilUpdateDestination: (jobId: string, destination: string, url: string) => Promise<any>;
+  exfilUpdateEncryption: (jobId: string, algo: string) => Promise<any>;
+  exfilUpdateCompression: (jobId: string, level: string) => Promise<any>;
+  exfilSetKey: (keyHex: string) => Promise<any>;
   exfilTotalSize: () => Promise<any>;
   exfilKey: () => Promise<any>;
   exfilClear: () => Promise<any>;
@@ -60,6 +82,16 @@ export interface RedHawkApi {
   // Results
   getScanResults: (target: string) => Promise<any>;
   getScanHistory: () => Promise<any[]>;
+  clearScanHistory: () => Promise<{ success: boolean }>;
+
+  // Activity log (cross-tab history)
+  addActivity: (entry: { tab: string; type: string; label: string; detail: string; target?: string }) => Promise<{ success: boolean }>;
+  getActivity: (tab?: string) => Promise<any[]>;
+  clearActivity: (tab?: string) => Promise<{ success: boolean }>;
+
+  // Reports
+  saveReport: (reportHtml: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  opReport: (operationId: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
 
   // Event listeners (returns cleanup function)
   onScanOutput: (callback: (data: string) => void) => () => void;
