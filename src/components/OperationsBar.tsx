@@ -157,7 +157,7 @@ export function OperationsBar() {
                     <div
                       key={op.id}
                       onClick={() => handleSwitch(op.id)}
-                      className={`px-4 py-2.5 cursor-pointer transition-all flex items-center gap-3 ${
+                      className={`group px-4 py-2.5 cursor-pointer transition-all flex items-center gap-3 ${
                         currentOp?.id === op.id
                           ? 'bg-redhawk-600/10 border-l-2 border-redhawk-500'
                           : 'hover:bg-midnight-700/30 border-l-2 border-transparent'
