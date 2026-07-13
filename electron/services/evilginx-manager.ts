@@ -14,8 +14,11 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { execSync, spawn, exec } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { EventEmitter } from 'events';
+
+const asyncExec = promisify(exec);
 
 export interface PhishletTemplate {
   name: string;
@@ -364,17 +367,18 @@ export class EvilginxManager extends EventEmitter {
    * Check if evilginx2 is available (in WSL or on PATH)
    */
   async checkAvailability(): Promise<{ available: boolean; path: string; message: string }> {
-    // Check WSL first
+    // Check WSL first (async — don't block the main process)
     try {
-      const wslResult = execSync('wsl which evilginx2', { timeout: 5000 }).toString().trim();
+      const { stdout } = await asyncExec('wsl which evilginx2', { timeout: 5000 });
+      const wslResult = stdout.trim();
       if (wslResult) {
         return { available: true, path: `wsl:${wslResult}`, message: 'Available in WSL2' };
       }
     } catch { /* not in wsl */ }
 
-    // Check PATH
+    // Check PATH (async)
     try {
-      execSync('where evilginx2', { stdio: 'ignore' });
+      await asyncExec('where evilginx2', { timeout: 5000 });
       return { available: true, path: 'evilginx2', message: 'Available on PATH' };
     } catch { /* not on path */ }
 

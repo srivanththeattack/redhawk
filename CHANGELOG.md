@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.1.2] — 2026-07-13
+
+### Fixed
+
+#### Evilginx2 Check No Longer Freezes the UI
+- Replaced `execSync` with async `exec` in `evilginxManager.checkAvailability()`
+- Previously, the synchronous `execSync('wsl which evilginx2', { timeout: 5000 })` blocked Electron's main process for up to 5 seconds, making the entire app unresponsive during the availability check
+- Tab switching and all other UI interactions now work while the check runs in the background
+
+#### Kill Chain — Removed "Dorking" Phase
+- Removed the `dorking` entry from the kill chain — the chain now shows: Reconnaissance → Exploitation → Phishing → C2 → Exfiltration
+- Updated `KillChainPhaseId` type, default state, and kill chain bar UI
+
+---
+
 ## [0.1.1] — 2026-07-12
 
 ### Added
@@ -153,5 +168,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+[0.1.2]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.2
 [0.1.1]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.1
 [0.1.0]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.0

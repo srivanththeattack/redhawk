@@ -3,7 +3,6 @@ import type { KillChainState, KillChainPhaseId, KillChainStatus } from '../store
 
 const PHASES: { id: KillChainPhaseId; label: string; icon: string; desc: string }[] = [
   { id: 'recon', label: 'Recon', icon: '🔍', desc: 'Information gathering' },
-  { id: 'dorking', label: 'Dorking', icon: '🔎', desc: 'Google dorking & OSINT' },
   { id: 'exploit', label: 'Exploit', icon: '💀', desc: 'Metasploit exploitation' },
   { id: 'phish', label: 'Phish', icon: '🎣', desc: 'Evilginx2 phishing' },
   { id: 'c2', label: 'C2', icon: '📡', desc: 'Command & control server' },
@@ -33,7 +32,7 @@ function statusBorder(status: KillChainStatus): string {
 }
 
 function progressWidth(chain: KillChainState): number {
-  const order: KillChainPhaseId[] = ['recon', 'dorking', 'exploit', 'phish', 'c2', 'exfil'];
+  const order: KillChainPhaseId[] = ['recon', 'exploit', 'phish', 'c2', 'exfil'];
   const completed = order.filter((id) => chain[id] === 'complete').length;
   return (completed / order.length) * 100;
 }
@@ -49,7 +48,7 @@ function getStatusText(chain: KillChainState): string {
 }
 
 function getProgressColor(chain: KillChainState): string {
-  const order: KillChainPhaseId[] = ['recon', 'dorking', 'exploit', 'phish', 'c2', 'exfil'];
+  const order: KillChainPhaseId[] = ['recon', 'exploit', 'phish', 'c2', 'exfil'];
   const completed = order.filter((id) => chain[id] === 'complete').length;
   if (completed === 0) return 'bg-midnight-600';
   if (completed >= order.length) return 'bg-gradient-to-r from-green-500 to-emerald-500';

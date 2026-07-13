@@ -34,14 +34,13 @@ const DEFAULT_TASK_STATE: ScanTaskState = {
 };
 
 // Kill chain phase tracking
-export type KillChainPhaseId = 'recon' | 'dorking' | 'exploit' | 'phish' | 'c2' | 'exfil';
+export type KillChainPhaseId = 'recon' | 'exploit' | 'phish' | 'c2' | 'exfil';
 export type KillChainStatus = 'pending' | 'active' | 'complete';
 
 export type KillChainState = Record<KillChainPhaseId, KillChainStatus>;
 
 const DEFAULT_KILL_CHAIN: KillChainState = {
   recon: 'pending',
-  dorking: 'pending',
   exploit: 'pending',
   phish: 'pending',
   c2: 'pending',
