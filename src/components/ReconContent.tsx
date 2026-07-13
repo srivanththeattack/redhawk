@@ -28,6 +28,10 @@ export function ReconContent({ scan }: ReconContentProps) {
   const lastRunRef = useRef<string | null>(null);
   const [showGuide, setShowGuide] = useState(getFirstRun);
 
+  const handleSectionRender = useCallback((id: string, el: HTMLDivElement) => {
+    sectionRefs.current.set(id, el);
+  }, []);
+
   // Pre-fill demo target on first launch
   useEffect(() => {
     if (showGuide && !scan.target) {

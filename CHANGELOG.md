@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.1.4] — 2026-07-13
+
+### Fixed
+
+#### Black Screen on Launch — `handleSectionRender` ReferenceError
+- Removed `const handleSectionRender = useCallback(...)` by accident in the first-run guide edit, causing a `ReferenceError: handleSectionRender is not defined` that broke the entire renderer
+- Restored the missing callback — app now renders correctly on launch
+
+#### Content Security Policy — Blocked Google Fonts
+- Updated CSP in `index.html` to allow `fonts.googleapis.com` (styles) and `fonts.gstatic.com` (font files)
+- App now loads Inter and JetBrains Mono fonts properly in production builds
+
+---
+
 ## [0.1.3] — 2026-07-13
 
 ### Added
@@ -183,6 +197,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+[0.1.4]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.4
 [0.1.3]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.3
 [0.1.2]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.2
 [0.1.1]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.1
