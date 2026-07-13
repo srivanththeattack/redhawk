@@ -5,6 +5,7 @@ import type { TabId } from './hooks/useSplitPanes';
 import { Disclaimer } from './components/Disclaimer';
 import { SplitPaneContainer } from './components/SplitPaneContainer';
 import { HamburgerMenu } from './components/HamburgerMenu';
+import { SettingsPanel } from './components/SettingsPanel';
 import { OperationsBar } from './components/OperationsBar';
 import { ThemePicker } from './components/ThemePicker';
 import { HistorySidebar } from './components/HistorySidebar';
@@ -56,6 +57,23 @@ export default function App() {
   const scan = useScan();
   const split = useSplitPanes();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tabOrder, setTabOrder] = useState<TabId[]>(() => {
+    try {
+      const saved = localStorage.getItem('redhawk_tab_order');
+      return saved ? JSON.parse(saved) : ['recon', 'exploit', 'phish', 'payload', 'evade', 'privesc', 'c2', 'exfil', 'ops'];
+    } catch { return ['recon', 'exploit', 'phish', 'payload', 'evade', 'privesc', 'c2', 'exfil', 'ops']; }
+  });
+  const [splitEnabled, setSplitEnabled] = useState(() => {
+    try { return localStorage.getItem('redhawk_split_enabled') !== 'false'; }
+    catch { return true; }
+  });
+
+  // When split is disabled, collapse to single pane
+  const handleSplitToggle = useCallback((enabled: boolean) => {
+    setSplitEnabled(enabled);
+    if (!enabled) split.collapseToSingle();
+  }, [split]);
 
   // Update kill chain when active tab changes
   useEffect(() => {
@@ -106,23 +124,22 @@ export default function App() {
           {/* Operations selector */}
           <OperationsBar />
 
-          {/* Tab navigation — each tab can be added as a split pane */}
+          {/* Tab navigation — ordered via settings */}
           <nav className="hidden md:flex items-center gap-1 ml-6 pl-6 border-l border-midnight-800">
-            {TABS.map((tab) => {
+            {tabOrder.map((tabId) => {
+              const tab = TABS.find(t => t.id === tabId);
+              if (!tab) return null;
               const isActive = split.panes.some((p) => p.tabId === tab.id);
               return (
                 <div key={tab.id} className="flex items-center gap-0 group">
                   <button
                     onClick={() => {
-                      // If this tab is already in a pane, focus it; otherwise add/replace
                       const existing = split.panes.find((p) => p.tabId === tab.id);
                       if (existing) {
                         split.setActivePaneId(existing.id);
-                      } else if (split.isSplit) {
-                        // Replace the active pane's tab
+                      } else if (split.isSplit && splitEnabled) {
                         split.setPaneTab(split.activePaneId, tab.id);
                       } else {
-                        // Add as new pane
                         split.addPane(tab.id);
                       }
                     }}
@@ -136,8 +153,8 @@ export default function App() {
                     <span>{tab.icon}</span>
                     <span>{tab.label}</span>
                   </button>
-                  {/* Split button — opens this tab in a new side pane */}
-                  {!isActive && (
+                  {/* Split button — only visible when split is enabled */}
+                  {!isActive && splitEnabled && (
                     <button
                       onClick={() => split.addPane(tab.id)}
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-gray-300 p-1"
@@ -183,29 +200,33 @@ export default function App() {
             </button>
           )}
           <ThemePicker />
-          <HamburgerMenu onToggleHistory={() => setSidebarOpen(p => !p)} sidebarOpen={sidebarOpen} />
+          <HamburgerMenu onToggleHistory={() => setSidebarOpen(p => !p)} onOpenSettings={() => setSettingsOpen(true)} sidebarOpen={sidebarOpen} />
         </div>
       </header>
 
       {/* ── MOBILE TAB BAR ── */}
       <div className="md:hidden flex gap-0.5 px-2 pt-2 bg-midnight-950 flex-shrink-0">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              split.panes.length > 0
-                ? split.setPaneTab(split.panes[0].id, tab.id)
-                : split.addPane(tab.id);
-            }}
-            className={`flex-1 py-2 rounded-t-lg text-[10px] font-medium transition-all ${
-              split.panes.some((p) => p.tabId === tab.id)
-                ? 'bg-midnight-900 text-redhawk-400 border-t border-l border-r border-midnight-800'
-                : 'text-gray-600 hover:text-gray-400 bg-midnight-950'
-            }`}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
+        {tabOrder.map((tabId) => {
+          const tab = TABS.find(t => t.id === tabId);
+          if (!tab) return null;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                split.panes.length > 0
+                  ? split.setPaneTab(split.panes[0].id, tab.id)
+                  : split.addPane(tab.id);
+              }}
+              className={`flex-1 py-2 rounded-t-lg text-[10px] font-medium transition-all ${
+                split.panes.some((p) => p.tabId === tab.id)
+                  ? 'bg-midnight-900 text-redhawk-400 border-t border-l border-r border-midnight-800'
+                  : 'text-gray-600 hover:text-gray-400 bg-midnight-950'
+              }`}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── MAIN LAYOUT ── */}
@@ -232,6 +253,19 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {/* ── SETTINGS MODAL ── */}
+      {settingsOpen && (
+        <SettingsPanel
+          onClose={() => setSettingsOpen(false)}
+          isSplit={split.isSplit}
+          onToggleSplit={handleSplitToggle}
+          onTabOrderChange={(order) => {
+            setTabOrder(order);
+            localStorage.setItem('redhawk_tab_order', JSON.stringify(order));
+          }}
+        />
+      )}
 
       {/* ── STATUS BAR ── */}
       <StatusBar phase={scan.phase} target={scan.target} />
