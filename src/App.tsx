@@ -4,8 +4,7 @@ import { useSplitPanes } from './hooks/useSplitPanes';
 import type { TabId } from './hooks/useSplitPanes';
 import { Disclaimer } from './components/Disclaimer';
 import { SplitPaneContainer } from './components/SplitPaneContainer';
-import { UpdateBanner } from './components/UpdateBanner';
-import { HelpBanner } from './components/HelpBanner';
+import { HamburgerMenu } from './components/HamburgerMenu';
 import { OperationsBar } from './components/OperationsBar';
 import { ThemePicker } from './components/ThemePicker';
 import { HistorySidebar } from './components/HistorySidebar';
@@ -184,19 +183,7 @@ export default function App() {
             </button>
           )}
           <ThemePicker />
-          <HelpBanner />
-          <UpdateBanner />
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`btn-ghost text-xs transition-all ${sidebarOpen ? 'bg-midnight-700/50 text-gray-200' : ''}`}
-          >
-            <span className="flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              History
-            </span>
-          </button>
+          <HamburgerMenu onToggleHistory={() => setSidebarOpen(p => !p)} sidebarOpen={sidebarOpen} />
         </div>
       </header>
 
