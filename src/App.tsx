@@ -21,8 +21,12 @@ const TABS: TabDef[] = [
   { id: 'recon', label: 'Recon', icon: '🔍', description: 'Target recon, OSINT, port scanning' },
   { id: 'exploit', label: 'Exploit', icon: '💀', description: 'Metasploit integration, payload generation' },
   { id: 'phish', label: 'Phish', icon: '🎣', description: 'Phishing campaigns via evilginx2' },
+  { id: 'payload', label: 'Payload', icon: '📦', description: 'Payload factory — generate, obfuscate, sign payloads' },
+  { id: 'evade', label: 'Evade', icon: '🛡️', description: 'AV/EDR evasion — AMSI bypass, ETW patch, injection' },
+  { id: 'privesc', label: 'Privesc', icon: '⬆️', description: 'Privilege escalation — WinPEAS, PowerUp, exploit suggester' },
   { id: 'c2', label: 'C2', icon: '📡', description: 'Command & control server' },
   { id: 'exfil', label: 'Exfil', icon: '📤', description: 'Data exfiltration' },
+  { id: 'ops', label: 'Ops', icon: '📋', description: 'Operation dashboard — timeline, notes, findings, todos' },
 ];
 
 function StatusBar({ phase, target }: { phase: string; target: string }) {
@@ -62,6 +66,10 @@ export default function App() {
       phish: 'phish',
       c2: 'c2',
       exfil: 'exfil',
+      payload: 'exploit',
+      evade: 'exploit',
+      ops: 'recon',
+      privesc: 'exploit',
     };
     const phase = tabToPhase[split.activeTab];
     if (phase) {

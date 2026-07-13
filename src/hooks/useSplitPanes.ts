@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 
-export type TabId = 'recon' | 'exploit' | 'phish' | 'c2' | 'exfil';
+export type TabId = 'recon' | 'exploit' | 'phish' | 'c2' | 'exfil' | 'payload' | 'evade' | 'ops' | 'privesc';
 
 export interface PaneConfig {
   id: string;
@@ -64,7 +64,7 @@ export function useSplitPanes() {
   // Replace a pane's content with a different tab
   const cyclePaneTab = useCallback((id: string) => {
     setPanes((prev) => {
-      const allTabs: TabId[] = ['recon', 'exploit', 'phish', 'c2', 'exfil'];
+      const allTabs: TabId[] = ['recon', 'exploit', 'phish', 'c2', 'exfil', 'payload', 'evade', 'ops', 'privesc'];
       const pane = prev.find((p) => p.id === id);
       if (!pane) return prev;
       const currentIdx = allTabs.indexOf(pane.tabId);

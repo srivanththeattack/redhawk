@@ -14,6 +14,10 @@ import { MsfRpcClient } from './services/msf-rpc-client';
 import { EvilginxManager } from './services/evilginx-manager';
 import { C2Server } from './services/c2-server';
 import { ExfilManager } from './services/exfil-manager';
+import { PayloadFactory } from './services/payload-factory';
+import { EvasionManager } from './services/evasion-manager';
+import { OpsDashboardManager } from './services/ops-manager';
+import { PrivescManager } from './services/privesc-manager';
 import { paths, isDev } from './services/paths';
 
 let mainWindow: BrowserWindow | null = null;
@@ -27,6 +31,10 @@ let msfClient: MsfRpcClient;
 let evilginxManager: EvilginxManager;
 let c2Server: C2Server;
 let exfilManager: ExfilManager;
+let payloadFactory: PayloadFactory;
+let evasionManager: EvasionManager;
+let opsManager: OpsDashboardManager;
+let privescManager: PrivescManager;
 
 function createWindow() {
   // Remove the default Electron menu bar (File, Edit, View, Window, Help)
@@ -770,6 +778,139 @@ function registerIpcHandlers() {
     }
   });
 
+  // ── Payload Factory ──
+  ipcMain.handle('payload-generate', async (_event, type: string, lhost: string, lport: number, kind?: string) => {
+    switch (type) {
+      case 'ps1':
+        return payloadFactory.generatePs1(lhost, lport, kind || 'powershell_encoded');
+      case 'csharp':
+        return payloadFactory.generateCsharp(lhost, lport);
+      case 'python':
+        return payloadFactory.generatePython(lhost, lport);
+      case 'shellcode':
+        return payloadFactory.generateShellcode(lhost, lport, kind || 'x64');
+      default:
+        return `Unknown payload type: ${type}`;
+    }
+  });
+
+  ipcMain.handle('payload-obfuscate', async (_event, payload: string, method: string) => {
+    return payloadFactory.obfuscate(payload, method);
+  });
+
+  ipcMain.handle('payload-save', async (_event, payload: string, filename: string) => {
+    return payloadFactory.save(payload, filename);
+  });
+
+  // ── Evasion ──
+  ipcMain.handle('evasion-get-bypasses', async () => {
+    return evasionManager.getAmsiBypasses();
+  });
+
+  ipcMain.handle('evasion-get-etp-patches', async () => {
+    return evasionManager.getEtpPatches();
+  });
+
+  ipcMain.handle('evasion-run-bypass', async (_event, name: string) => {
+    return await evasionManager.runAmsiBypass(name);
+  });
+
+  ipcMain.handle('evasion-patch-etw', async () => {
+    return await evasionManager.patchEtw();
+  });
+
+  ipcMain.handle('evasion-get-techniques', async () => {
+    return evasionManager.getTechniques();
+  });
+
+  ipcMain.handle('evasion-inject', async (_event, pid: number, shellcodeB64: string, technique: string) => {
+    return await evasionManager.injectShellcode(pid, shellcodeB64, technique);
+  });
+
+  ipcMain.handle('evasion-check-file', async (_event, filePath: string) => {
+    return await evasionManager.checkFile(filePath);
+  });
+
+  // ── Ops Dashboard ──
+  ipcMain.handle('ops-save-note', async (_event, target: string, note: string) => {
+    return opsManager.saveNote(target, note);
+  });
+
+  ipcMain.handle('ops-get-notes', async (_event, target: string) => {
+    return opsManager.getNotes(target);
+  });
+
+  ipcMain.handle('ops-get-findings', async () => {
+    return opsManager.getFindings();
+  });
+
+  ipcMain.handle('ops-save-finding', async (_event, finding: any) => {
+    return opsManager.saveFinding(finding);
+  });
+
+  ipcMain.handle('ops-get-todos', async () => {
+    return opsManager.getTodos();
+  });
+
+  ipcMain.handle('ops-save-todo', async (_event, todo: any) => {
+    return opsManager.saveTodo(todo);
+  });
+
+  ipcMain.handle('ops-toggle-todo', async (_event, index: number) => {
+    return opsManager.toggleTodo(index);
+  });
+
+  ipcMain.handle('ops-delete-todo', async (_event, index: number) => {
+    return opsManager.deleteTodo(index);
+  });
+
+  ipcMain.handle('ops-save-screenshot', async (_event, name: string, dataUrl: string) => {
+    return opsManager.saveScreenshot(name, dataUrl);
+  });
+
+  ipcMain.handle('ops-get-screenshots', async () => {
+    return opsManager.getScreenshots();
+  });
+
+  ipcMain.handle('ops-get-timeline', async () => {
+    // Pull activity from targetStore (which logs activity)
+    const history = await targetStore.getHistory();
+    const activity: any[] = [];
+    for (const entry of history) {
+      activity.push({ target: entry.target, timestamp: entry.timestamp, type: 'scan', detail: Object.keys(entry.results || {}).join(', ') });
+    }
+    return opsManager.getTimeline(activity);
+  });
+
+  // ── Privilege Escalation ──
+  ipcMain.handle('privesc-system-info', async () => {
+    return privescManager.getSystemInfo();
+  });
+
+  ipcMain.handle('privesc-run-checks', async () => {
+    return await privescManager.runChecks();
+  });
+
+  ipcMain.handle('privesc-powerup', async () => {
+    return await privescManager.runPowerUp();
+  });
+
+  ipcMain.handle('privesc-suggest-exploit', async () => {
+    return privescManager.suggestExploit();
+  });
+
+  ipcMain.handle('privesc-enum-services', async () => {
+    return await privescManager.enumServices();
+  });
+
+  ipcMain.handle('privesc-unquoted-paths', async () => {
+    return privescManager.checkUnquotedPaths();
+  });
+
+  ipcMain.handle('privesc-always-install-elevated', async () => {
+    return privescManager.checkAlwaysInstallElevated();
+  });
+
   // ── Live output ──
   toolRunner.onOutput((data: string) => {
     mainWindow?.webContents.send('scan-output', data);
@@ -798,6 +939,10 @@ app.whenReady().then(() => {
     evilginxManager = new EvilginxManager(userDataPath);
     c2Server = new C2Server();
     exfilManager = new ExfilManager(userDataPath);
+    payloadFactory = new PayloadFactory(userDataPath);
+    evasionManager = new EvasionManager();
+    opsManager = new OpsDashboardManager(userDataPath);
+    privescManager = new PrivescManager();
 
     registerIpcHandlers();
     createWindow();

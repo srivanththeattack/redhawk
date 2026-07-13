@@ -100,6 +100,46 @@ const api = {
   saveReport: (reportHtml: string) => ipcRenderer.invoke('save-report', reportHtml),
   opReport: (operationId: string) => ipcRenderer.invoke('op-report', operationId),
 
+  // Payload Factory
+  payloadGenerate: (type: string, lhost: string, lport: number, kind?: string) =>
+    ipcRenderer.invoke('payload-generate', type, lhost, lport, kind),
+  payloadObfuscate: (payload: string, method: string) =>
+    ipcRenderer.invoke('payload-obfuscate', payload, method),
+  payloadSave: (payload: string, filename: string) =>
+    ipcRenderer.invoke('payload-save', payload, filename),
+
+  // Evasion
+  evasionGetBypasses: () => ipcRenderer.invoke('evasion-get-bypasses'),
+  evasionGetEtpPatches: () => ipcRenderer.invoke('evasion-get-etp-patches'),
+  evasionRunBypass: (name: string) => ipcRenderer.invoke('evasion-run-bypass', name),
+  evasionPatchEtw: () => ipcRenderer.invoke('evasion-patch-etw'),
+  evasionGetTechniques: () => ipcRenderer.invoke('evasion-get-techniques'),
+  evasionInject: (pid: number, shellcodeB64: string, technique: string) =>
+    ipcRenderer.invoke('evasion-inject', pid, shellcodeB64, technique),
+  evasionCheckFile: (filePath: string) => ipcRenderer.invoke('evasion-check-file', filePath),
+
+  // Ops Dashboard
+  opsSaveNote: (target: string, note: string) => ipcRenderer.invoke('ops-save-note', target, note),
+  opsGetNotes: (target: string) => ipcRenderer.invoke('ops-get-notes', target),
+  opsGetFindings: () => ipcRenderer.invoke('ops-get-findings'),
+  opsSaveFinding: (finding: any) => ipcRenderer.invoke('ops-save-finding', finding),
+  opsGetTodos: () => ipcRenderer.invoke('ops-get-todos'),
+  opsSaveTodo: (todo: any) => ipcRenderer.invoke('ops-save-todo', todo),
+  opsToggleTodo: (index: number) => ipcRenderer.invoke('ops-toggle-todo', index),
+  opsDeleteTodo: (index: number) => ipcRenderer.invoke('ops-delete-todo', index),
+  opsSaveScreenshot: (name: string, dataUrl: string) => ipcRenderer.invoke('ops-save-screenshot', name, dataUrl),
+  opsGetScreenshots: () => ipcRenderer.invoke('ops-get-screenshots'),
+  opsGetTimeline: () => ipcRenderer.invoke('ops-get-timeline'),
+
+  // Privilege Escalation
+  privescSystemInfo: () => ipcRenderer.invoke('privesc-system-info'),
+  privescRunChecks: () => ipcRenderer.invoke('privesc-run-checks'),
+  privescPowerUp: () => ipcRenderer.invoke('privesc-powerup'),
+  privescSuggestExploit: () => ipcRenderer.invoke('privesc-suggest-exploit'),
+  privescEnumServices: () => ipcRenderer.invoke('privesc-enum-services'),
+  privescUnquotedPaths: () => ipcRenderer.invoke('privesc-unquoted-paths'),
+  privescAlwaysInstallElevated: () => ipcRenderer.invoke('privesc-always-install-elevated'),
+
   // Event listeners
   onScanOutput: (callback: (data: string) => void) => {
     const handler = (_event: any, data: string) => callback(data);

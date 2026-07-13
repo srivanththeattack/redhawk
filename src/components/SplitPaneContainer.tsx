@@ -6,6 +6,10 @@ import { MsfPanel } from './MsfPanel';
 import { PhishingPanel } from './PhishingPanel';
 import { C2Panel } from './C2Panel';
 import { ExfilPanel } from './ExfilPanel';
+import { PayloadPanel } from './PayloadPanel';
+import { EvadePanel } from './EvadePanel';
+import { OpsDashboard } from './OpsDashboard';
+import { PrivescPanel } from './PrivescPanel';
 
 interface SplitPaneContainerProps {
   panes: PaneConfig[];
@@ -20,8 +24,12 @@ const TAB_LABELS: Record<TabId, { label: string; icon: string }> = {
   recon: { label: 'Recon', icon: '🔍' },
   exploit: { label: 'Exploit', icon: '💀' },
   phish: { label: 'Phish', icon: '🎣' },
+  payload: { label: 'Payload', icon: '📦' },
+  evade: { label: 'Evade', icon: '🛡️' },
+  privesc: { label: 'Privesc', icon: '⬆️' },
   c2: { label: 'C2', icon: '📡' },
   exfil: { label: 'Exfil', icon: '📤' },
+  ops: { label: 'Ops', icon: '📋' },
 };
 
 function TabContent({ tabId, scan }: { tabId: TabId; scan: ReturnType<typeof useScan> }) {
@@ -32,10 +40,18 @@ function TabContent({ tabId, scan }: { tabId: TabId; scan: ReturnType<typeof use
       return <MsfPanel />;
     case 'phish':
       return <PhishingPanel />;
+    case 'payload':
+      return <PayloadPanel />;
+    case 'evade':
+      return <EvadePanel />;
+    case 'privesc':
+      return <PrivescPanel />;
     case 'c2':
       return <C2Panel />;
     case 'exfil':
       return <ExfilPanel />;
+    case 'ops':
+      return <OpsDashboard scan={scan} />;
   }
 }
 

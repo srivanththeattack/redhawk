@@ -93,6 +93,42 @@ export interface RedHawkApi {
   saveReport: (reportHtml: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   opReport: (operationId: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
 
+  // Payload Factory
+  payloadGenerate: (type: string, lhost: string, lport: number, kind?: string) => Promise<string>;
+  payloadObfuscate: (payload: string, method: string) => Promise<string>;
+  payloadSave: (payload: string, filename: string) => Promise<{ success: boolean; filePath?: string }>;
+
+  // Evasion
+  evasionGetBypasses: () => Promise<{ name: string; code: string; description: string }[]>;
+  evasionGetEtpPatches: () => Promise<{ name: string; code: string; description: string }[]>;
+  evasionRunBypass: (name: string) => Promise<{ success: boolean; output: string }>;
+  evasionPatchEtw: () => Promise<{ success: boolean; output: string }>;
+  evasionGetTechniques: () => Promise<{ id: string; name: string; description: string }[]>;
+  evasionInject: (pid: number, shellcodeB64: string, technique: string) => Promise<{ success: boolean; output: string }>;
+  evasionCheckFile: (filePath: string) => Promise<{ detected: boolean; engines: number; result: string }>;
+
+  // Ops Dashboard
+  opsGetTimeline: () => Promise<any[]>;
+  opsSaveNote: (target: string, note: string) => Promise<boolean>;
+  opsGetNotes: (target: string) => Promise<string[]>;
+  opsSaveFinding: (finding: { target: string; title: string; severity: string; description: string }) => Promise<boolean>;
+  opsGetFindings: () => Promise<any[]>;
+  opsSaveTodo: (todo: { text: string; done: boolean }) => Promise<boolean>;
+  opsGetTodos: () => Promise<any[]>;
+  opsToggleTodo: (index: number) => Promise<boolean>;
+  opsDeleteTodo: (index: number) => Promise<boolean>;
+  opsSaveScreenshot: (name: string, dataUrl: string) => Promise<{ success: boolean; filePath?: string }>;
+  opsGetScreenshots: () => Promise<{ name: string; path: string; timestamp: string }[]>;
+
+  // Privilege Escalation
+  privescSystemInfo: () => Promise<{ os: string; arch: string; user: string; integrity: string; domain: string }>;
+  privescRunChecks: () => Promise<{ category: string; checks: { name: string; status: string; detail: string }[] }[]>;
+  privescPowerUp: () => Promise<any[]>;
+  privescSuggestExploit: () => Promise<{ name: string; cve: string; edbId: string; description: string; reliability: string }[]>;
+  privescEnumServices: () => Promise<{ name: string; displayName: string; startType: string; user: string; path: string; vulnerable: boolean }[]>;
+  privescUnquotedPaths: () => Promise<{ path: string; name: string }[]>;
+  privescAlwaysInstallElevated: () => Promise<boolean>;
+
   // Event listeners (returns cleanup function)
   onScanOutput: (callback: (data: string) => void) => () => void;
   onScanStatus: (callback: (data: { target: string; message: string }) => void) => () => void;
