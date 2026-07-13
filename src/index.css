@@ -61,6 +61,7 @@
     @apply bg-midnight-900 border border-midnight-600 rounded-md px-4 py-2.5 text-gray-100 
            placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-redhawk-500 
            focus:border-transparent transition-all duration-150 w-full;
+    caret-color: inherit;
   }
 
   .badge {

@@ -11,11 +11,6 @@ export function TargetInput({ target, onTargetChange, onScan, isScanning }: Targ
   const [isValid, setIsValid] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input on mount
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
   // Global keyboard shortcut: Ctrl+Enter
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
