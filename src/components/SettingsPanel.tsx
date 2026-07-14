@@ -86,12 +86,6 @@ export function SettingsPanel({ onClose, isSplit, onToggleSplit, onTabOrderChang
   const [showStatusBar, setShowStatusBar] = useState(() => loadPref('redhawk_show_status', true));
   const [compactMode, setCompactMode] = useState(() => loadPref('redhawk_compact', false));
 
-  const handleToggle = useCallback((key: string, setter: (v: boolean) => void, value: boolean) => {
-    setter(value);
-    savePref(key, value);
-    if (key === 'redhawk_split_enabled') onToggleSplit(value);
-  }, [onToggleSplit]);
-
   const handleTabOrderChangeInner = useCallback((order: TabId[]) => {
     saveTabOrder(order);
     onTabOrderChange(order);
@@ -155,7 +149,11 @@ export function SettingsPanel({ onClose, isSplit, onToggleSplit, onTabOrderChang
                 autoSave={autoSave}
                 showStatusBar={showStatusBar}
                 compactMode={compactMode}
-                onToggle={(key, setter, val) => handleToggle(key, setter, val)}
+                onSetSplitEnabled={(v) => { setSplitEnabled(v); savePref('redhawk_split_enabled', v); onToggleSplit(v); }}
+                onSetLiveOutput={(v) => { setLiveOutput(v); savePref('redhawk_live_output', v); }}
+                onSetAutoSave={(v) => { setAutoSave(v); savePref('redhawk_auto_save', v); }}
+                onSetShowStatusBar={(v) => { setShowStatusBar(v); savePref('redhawk_show_status', v); }}
+                onSetCompactMode={(v) => { setCompactMode(v); savePref('redhawk_compact', v); }}
               />
             )}
             {page === 'tabs' && (
@@ -193,10 +191,15 @@ function ToggleRow({ label, desc, enabled, onToggle }: { label: string; desc: st
 }
 
 // ── General ──
-function GeneralSettings({ splitEnabled, liveOutput, autoSave, showStatusBar, compactMode, onToggle }: {
+function GeneralSettings({ splitEnabled, liveOutput, autoSave, showStatusBar, compactMode,
+  onSetSplitEnabled, onSetLiveOutput, onSetAutoSave, onSetShowStatusBar, onSetCompactMode }: {
   splitEnabled: boolean; liveOutput: boolean; autoSave: boolean;
   showStatusBar: boolean; compactMode: boolean;
-  onToggle: (key: string, setter: (v: boolean) => void, value: boolean) => void;
+  onSetSplitEnabled: (v: boolean) => void;
+  onSetLiveOutput: (v: boolean) => void;
+  onSetAutoSave: (v: boolean) => void;
+  onSetShowStatusBar: (v: boolean) => void;
+  onSetCompactMode: (v: boolean) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -208,19 +211,19 @@ function GeneralSettings({ splitEnabled, liveOutput, autoSave, showStatusBar, co
       <div className="space-y-2">
         <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold px-1">Workspace</p>
         <ToggleRow label="Split Panes" desc="Allow opening tabs in side-by-side panes"
-          enabled={splitEnabled} onToggle={(v) => onToggle('redhawk_split_enabled', () => {}, v)} />
+          enabled={splitEnabled} onToggle={(v) => onSetSplitEnabled(v)} />
         <ToggleRow label="Live Output" desc="Stream real-time scan output to the terminal view"
-          enabled={liveOutput} onToggle={(v) => onToggle('redhawk_live_output', () => {}, v)} />
+          enabled={liveOutput} onToggle={(v) => onSetLiveOutput(v)} />
         <ToggleRow label="Compact Mode" desc="Tighter spacing for more content per view"
-          enabled={compactMode} onToggle={(v) => onToggle('redhawk_compact', () => {}, v)} />
+          enabled={compactMode} onToggle={(v) => onSetCompactMode(v)} />
       </div>
 
       <div className="space-y-2">
         <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold px-1">Data</p>
         <ToggleRow label="Auto-Save Results" desc="Automatically save scan results to history"
-          enabled={autoSave} onToggle={(v) => onToggle('redhawk_auto_save', () => {}, v)} />
+          enabled={autoSave} onToggle={(v) => onSetAutoSave(v)} />
         <ToggleRow label="Status Bar" desc="Show the status bar at the bottom of the window"
-          enabled={showStatusBar} onToggle={(v) => onToggle('redhawk_show_status', () => {}, v)} />
+          enabled={showStatusBar} onToggle={(v) => onSetShowStatusBar(v)} />
       </div>
     </div>
   );
