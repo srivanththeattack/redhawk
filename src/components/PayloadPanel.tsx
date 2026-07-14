@@ -118,7 +118,7 @@ export function PayloadPanel() {
         ].map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
-              tab === t.id ? 'bg-redhawk-600/20 text-redhawk-400 border border-redhawk-600/30' : 'text-gray-500 hover:text-gray-300'
+              tab === t.id ? 'bg-redhawk-600/20 text-white border border-redhawk-600/30' : 'text-gray-500 hover:text-gray-300'
             }`}>
             {t.icon} {t.label}
           </button>
@@ -143,9 +143,9 @@ export function PayloadPanel() {
             <div className="sm:col-span-2">
               <label className="text-[10px] text-gray-500 block mb-1">Payload</label>
               <select value={msfPayload} onChange={(e) => setMsfPayload(e.target.value)}
-                className="input-field h-9 text-sm">
+                className="input-field py-1.5 text-sm">
                 {MSF_PAYLOADS.map((p) => (
-                  <option key={p.value} value={p.value} className="bg-midnight-900">{p.label}</option>
+                  <option key={p.value} value={p.value} className="bg-midnight-900 text-gray-100">{p.label}</option>
                 ))}
               </select>
             </div>
@@ -158,7 +158,7 @@ export function PayloadPanel() {
                   <button key={t.id} onClick={() => setStandaloneType(t.id)}
                     className={`text-xs px-2.5 py-1.5 rounded-md border transition-all ${
                       standaloneType === t.id
-                        ? 'bg-redhawk-600/20 text-redhawk-400 border-redhawk-600/30'
+                        ? 'bg-redhawk-600/20 text-white border-redhawk-600/30'
                         : 'bg-midnight-800 text-gray-400 border-midnight-700 hover:border-midnight-600'
                     }`}>
                     {t.icon} {t.label}
@@ -175,7 +175,7 @@ export function PayloadPanel() {
                   <button key={a} onClick={() => setArch(a)}
                     className={`text-xs px-3 py-1.5 rounded-md border transition-all ${
                       arch === a
-                        ? 'bg-redhawk-600/20 text-redhawk-400 border-redhawk-600/30'
+                        ? 'bg-redhawk-600/20 text-white border-redhawk-600/30'
                         : 'bg-midnight-800 text-gray-400 border-midnight-700'
                     }`}>{a}</button>
                 ))}
@@ -183,10 +183,21 @@ export function PayloadPanel() {
             </div>
           )}
         </div>
-        <button onClick={handleGenerate} disabled={generating || !lhost.trim() || !lport.trim()}
-          className="btn-primary w-full mt-3">
-          {generating ? 'Generating...' : 'Generate Payload'}
-        </button>
+        <div className="flex gap-2 mt-3">
+          <button onClick={handleGenerate} disabled={generating || !lhost.trim() || !lport.trim()}
+            className="btn-primary flex-1">
+            {generating ? 'Generating...' : 'Generate Payload'}
+          </button>
+          <button onClick={async () => {
+            const result = await window.api.payloadImport();
+            if (result) {
+              setOutput(`// Imported from: ${result.filePath}\n${result.content}`);
+              await window.api.addActivity({ tab: 'payload', type: 'import', label: 'Imported payload', detail: result.filePath });
+            }
+          }} className="btn-secondary text-xs">
+            Import Payload
+          </button>
+        </div>
       </div>
 
       {/* Output */}
@@ -210,7 +221,7 @@ export function PayloadPanel() {
                 <button key={m.id} onClick={() => setObfuscationMethod(m.id)}
                   className={`text-xs px-2 py-1 rounded border transition-all ${
                     obfuscationMethod === m.id
-                      ? 'bg-redhawk-600/20 text-redhawk-400 border-redhawk-600/30'
+                      ? 'bg-redhawk-600/20 text-white border-redhawk-600/30'
                       : 'bg-midnight-800 text-gray-400 border-midnight-700'
                   }`}>{m.icon} {m.label}</button>
               ))}

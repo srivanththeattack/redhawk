@@ -112,7 +112,7 @@ export function ThemePicker() {
                   onClick={() => handleSelect(theme.id)}
                   className={`w-full px-4 py-2.5 flex items-center gap-3 text-xs transition-all ${
                     current === theme.id
-                      ? 'bg-redhawk-600/10 text-redhawk-400'
+                      ? 'bg-redhawk-600/10 text-white'
                       : 'text-gray-400 hover:text-gray-200 hover:bg-midnight-700/30'
                   }`}
                 >

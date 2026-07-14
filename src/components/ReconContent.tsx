@@ -200,6 +200,32 @@ export function ReconContent({ scan }: ReconContentProps) {
             title="Hyper aggressive - fast but noisy, includes OS detection & traceroute">
             🔥 Hyper Scan
           </button>
+          <button onClick={async () => {
+            const result = await window.api.runGeoIp(scan.target);
+            scan.appendOutput(`\n--- IP Geolocation ---\n${JSON.stringify(result, null, 2)}`);
+          }}
+            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-lime-700/50"
+            title="Look up IP geolocation data">
+            🌍 GeoIP
+          </button>
+          <button onClick={async () => {
+            const result = await window.api.runReverseDns(scan.target);
+            scan.appendOutput(`\n--- Reverse DNS ---\n${JSON.stringify(result, null, 2)}`);
+          }}
+            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-emerald-700/50"
+            title="Reverse DNS lookup for IP/hostname">
+            🔄 Reverse DNS
+          </button>
+          <button onClick={async () => {
+            const port = prompt('Port number:', '80');
+            if (!port) return;
+            const result = await window.api.runPortHealth(scan.target, parseInt(port));
+            scan.appendOutput(`\n--- Port Health (${port}) ---\n${JSON.stringify(result, null, 2)}`);
+          }}
+            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-amber-700/50"
+            title="Check if a specific port is open">
+            ❤️ Port Health
+          </button>
         </div>
       )}
 

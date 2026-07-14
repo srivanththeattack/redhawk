@@ -194,7 +194,7 @@ export function PhishingPanel() {
             onClick={() => setTab(t.id)}
             className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
               tab === t.id
-                ? 'bg-redhawk-600/20 text-redhawk-400 border border-redhawk-600/30'
+                ? 'bg-redhawk-600/20 text-white border border-redhawk-600/30'
                 : 'text-gray-500 hover:text-gray-300'
             }`}
           >
@@ -216,7 +216,7 @@ export function PhishingPanel() {
                   <input
                     type="text" value={campaignName}
                     onChange={(e) => setCampaignName(e.target.value)}
-                    className="input-field h-9 text-sm"
+                  className="input-field py-1.5 text-sm"
                     placeholder="e.g. Target Exec Phish"
                   />
                   <span className="text-[9px] text-gray-600 mt-0.5 block">Any name to identify this campaign</span>
@@ -237,10 +237,10 @@ export function PhishingPanel() {
                 <select
                   value={selectedPhishlet}
                   onChange={(e) => setSelectedPhishlet(e.target.value)}
-                  className="input-field h-9 text-sm"
+                  className="input-field py-1.5 text-sm"
                 >
                   {phishlets.map((p, i) => (
-                    <option key={i} value={p.name} className="bg-midnight-900">{p.name} ({p.domain})</option>
+                    <option key={i} value={p.name} className="bg-midnight-900 text-gray-100">{p.name} ({p.domain})</option>
                   ))}
                 </select>
                 <span className="text-[9px] text-gray-600 mt-0.5 block">Which service's login page to clone</span>
@@ -253,18 +253,29 @@ export function PhishingPanel() {
 
           {/* Available Phishlets — collapsible tag */}
           <div className="card">
-            <button
-              onClick={() => setPhishletsOpen(!phishletsOpen)}
-              className="w-full flex items-center justify-between cursor-pointer"
-            >
-              <span className="card-header mb-0">Available Phishlets ({phishlets.length})</span>
-              <svg
-                className={`w-4 h-4 text-gray-500 transition-transform ${phishletsOpen ? 'rotate-180' : ''}`}
-                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setPhishletsOpen(!phishletsOpen)}
+                className="flex items-center gap-1 cursor-pointer"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+                <span className="card-header mb-0">Available Phishlets ({phishlets.length})</span>
+                <svg
+                  className={`w-4 h-4 text-gray-500 transition-transform ${phishletsOpen ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <button onClick={async () => {
+                const result = await window.api.phishImportPhishlet();
+                if (result.success) {
+                  loadPhishlets();
+                  await window.api.addActivity({ tab: 'phish', type: 'import', label: 'Imported phishlet', detail: result.message });
+                } else if (result.message !== 'Cancelled') {
+                  alert(result.message);
+                }
+              }} className="btn-secondary text-xs">Import Phishlet</button>
+            </div>
             {phishletsOpen && (
               <div className="space-y-2 mt-3">
                 {phishlets.map((phishlet, idx) => (

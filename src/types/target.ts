@@ -115,11 +115,60 @@ export interface ScanResults {
   error?: string;
 }
 
+export interface DepDetail {
+  installed: boolean;
+  version?: string;
+  path?: string;
+  detail?: string;
+}
+
 export interface DepsStatus {
-  nmap: boolean;
-  python: boolean;
-  pip: boolean;
+  nmap: DepDetail;
+  python: DepDetail;
+  pip: DepDetail;
+  metasploit: DepDetail;
+  msfRunning: DepDetail;
+  evilginx: DepDetail;
+  wsl: DepDetail;
   all: boolean;
 }
 
 export type ScanPhase = 'idle' | 'scanning' | 'complete' | 'error';
+
+// ── C2 Profile (Malleable) ──
+
+export interface C2ProfileHttpEndpoint {
+  uri: string;
+  verb: 'GET' | 'POST' | 'PUT';
+  response: {
+    status: number;
+    headers: { name: string; value: string }[];
+  };
+}
+
+export interface C2Profile {
+  name: string;
+  description: string;
+  http: {
+    jitter: number;
+    sleep: number;
+    userAgent: string;
+    headers: { name: string; value: string }[];
+    get: C2ProfileHttpEndpoint;
+    post: C2ProfileHttpEndpoint;
+    upload: C2ProfileHttpEndpoint;
+  };
+  dns?: {
+    beacon: string;
+    txtResponse: string;
+  };
+  agent: {
+    killdateFormat: 'iso' | 'epoch';
+    sleeptype: 'jitter' | 'exponential' | 'uniform';
+  };
+  metadata: {
+    author: string;
+    version: string;
+    stage: 'stageless' | 'stager';
+  };
+}

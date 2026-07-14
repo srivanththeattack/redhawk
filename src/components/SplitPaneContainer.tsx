@@ -10,6 +10,7 @@ import { PayloadPanel } from './PayloadPanel';
 import { EvadePanel } from './EvadePanel';
 import { OpsDashboard } from './OpsDashboard';
 import { PrivescPanel } from './PrivescPanel';
+import { TeamPanel } from './TeamPanel';
 
 interface SplitPaneContainerProps {
   panes: PaneConfig[];
@@ -30,6 +31,7 @@ const TAB_LABELS: Record<TabId, { label: string; icon: string }> = {
   c2: { label: 'C2', icon: '📡' },
   exfil: { label: 'Exfil', icon: '📤' },
   ops: { label: 'Ops', icon: '📋' },
+  team: { label: 'Team', icon: '👥' },
 };
 
 function TabContent({ tabId, scan }: { tabId: TabId; scan: ReturnType<typeof useScan> }) {
@@ -52,6 +54,8 @@ function TabContent({ tabId, scan }: { tabId: TabId; scan: ReturnType<typeof use
       return <ExfilPanel />;
     case 'ops':
       return <OpsDashboard scan={scan} />;
+    case 'team':
+      return <TeamPanel />;
   }
 }
 

@@ -6,17 +6,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [0.1.4] — 2026-07-13
+## [0.1.5] — 2026-07-14
+
+### Added
+
+#### Team Collaboration Hub
+- **New Team tab** with 4 sub-tabs: Live Feed, Findings, Notes, Target Coordination
+- Shared activity feed — scans, exploits, payloads, C2 actions broadcast in real-time to all connected members
+- Shared findings with severity (Low → Critical) and status (Open → In Progress → Confirmed) workflow
+- Per-target notes visible to the entire team with filtering
+- Target coordination pool — check-out targets to claim them, release when done, set status
+- Members auto-assigned colors from an 8-color palette; stale members (5min timeout) filtered out
+- Dual-mode connection: use local IPC (same machine) or remote HTTP (team members connect via C2 server URL)
+- C2 URL auto-detection when local server is running — click to connect
+- Connection status indicator (green/red dot)
+- Helpful tips in every empty sub-tab explaining the workflow
+- All data persisted to disk (`userData/collab/*.json`)
+
+#### Malleable C2 Profiles
+- 4 built-in profiles: **default**, **cs-like** (fake Apache/PHP headers, `/jquery-3.6.0.min.js` check-in), **minimal** (single `/api` endpoint, `curl` UA), **onedrive** (O365 Graph API mimic)
+- Profile selector + JSON editor in C2Panel — edit URIs, response headers, status codes, user-agent
+- Profile CRUD via IPC (list, get, save, save as new)
+- C2 server dynamically routes agent callbacks to profile-defined endpoints
+- Beacon generator post-processes all 10 agent types to use profile URIs instead of hardcoded paths
+- Custom HTTP response headers + status codes from profile definition
+
+#### Beacon Generator Rewrite
+- All 10 agent types (Python, PowerShell, PS-AMSI, Batch, Bash, SH, C#, VBA, Nim, Rust) rewritten with:
+  - Configurable sleep interval, random jitter, kill date
+  - Proper task ID tracking (no more hardcoded `"taskId":"0"`)
+  - Profile URI injection via post-processing
+
+#### 10 New Phishlet Templates
+- dropbox, adobe, outlook, yahoo, whatsapp, telegram, reddit, paypal, stackoverflow — plus the existing set
+
+#### Custom Payload & Phishlet Import
+- **Import Payload** button in PayloadPanel — opens file dialog for `.ps1/.py/.cs/.txt`, displays content in output area
+- **Import Phishlet** button in PhishingPanel — imports `.yaml/.yml/.txt` files, copies to phishlets directory, auto-refreshes list
+
+#### 3 New Recon Scans
+- **IP Geolocation** — resolves domain, queries ip-api.com for location data
+- **Reverse DNS** — Node.js `dns.reverse` lookup
+- **Port Health** — TCP connectivity test with 5s timeout via Node.js `net` module
+
+#### Dependency Checker Enhancements
+- All check methods return `DepDetail` objects (`installed`, `version?`, `path?`, `detail?`)
+- **msfRunning** TCP connectivity test (`127.0.0.1:55553`, 3s timeout)
+- **WSL distro detection** — lists available distros, warns if none found
+- **Evilginx WSL-aware check** — tries Ubuntu/Debian/kali-linux explicitly before default
+
+#### HTTPS C2 Support
+- SSL cert/key file picker in C2Panel using native OS file dialog
+- `dialog-open-file` IPC handler for generic file picking
+- Full HTTPS listener support in C2 server
+
+#### Keyboard Shortcut
+- **Ctrl+Tab / Ctrl+Shift+Tab** to cycle tabs — respects custom tab order from Settings
 
 ### Fixed
 
-#### Black Screen on Launch — `handleSectionRender` ReferenceError
-- Removed `const handleSectionRender = useCallback(...)` by accident in the first-run guide edit, causing a `ReferenceError: handleSectionRender is not defined` that broke the entire renderer
-- Restored the missing callback — app now renders correctly on launch
+#### Tab Order Migration — New Tabs No Longer Invisible
+- Both `App.tsx` and `SettingsPanel.tsx` now merge missing tab IDs into saved `redhawk_tab_order` instead of replacing it
+- Previously, a saved tab order from an older version would permanently hide newly added tabs (like `team`)
 
-#### Content Security Policy — Blocked Google Fonts
-- Updated CSP in `index.html` to allow `fonts.googleapis.com` (styles) and `fonts.gstatic.com` (font files)
-- App now loads Inter and JetBrains Mono fonts properly in production builds
+#### Exfil Panel Collection Type Selector
+- Was using an invisible state variable — replaced with a proper `<select>` dropdown offering 4 collection types
+- Selected type controls which config fields are visible
+- DNS type prompts for exfiltration domain
+
+#### UI Polish
+- **No more emoji icons** — every tab icon, button icon, and UI element uses clean SVG icons (2px stroke, `currentColor`, 16px)
+- **Active tab text** is now white on red background (was invisible red-on-red)
+- **All `<select>` elements** no longer clip text — removed fixed `h-8`/`h-9` constraints, use `py-1.5`, explicit `text-gray-100` on `<option>` elements
+- **Custom RedHawk logo** — Canva-designed hawk icon in taskbar, title bar, installer, and desktop shortcut
+
+### Changed
+
+- **SettingsPanel** tab order now handles drag-and-drop with arrow key fallback
+- **StatusBar** enhanced with operation context, C2 health dot (polled 5s), scan progress bar, target hostname
+- **Compact Mode**, **Split Panes**, **Status Bar** toggles all affect UI immediately (not just localStorage)
+- **Live Output** toggle removed (user deemed it redundant)
+- Collab hub integrated into C2 server — REST API available at `/api/collab/*` on C2 port; no separate process
 
 ---
 
@@ -197,6 +267,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+[0.1.5]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.5
 [0.1.4]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.4
 [0.1.3]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.3
 [0.1.2]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.2

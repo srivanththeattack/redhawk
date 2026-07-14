@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 
-export type TabId = 'recon' | 'exploit' | 'phish' | 'c2' | 'exfil' | 'payload' | 'evade' | 'ops' | 'privesc';
+export type TabId = 'recon' | 'exploit' | 'phish' | 'c2' | 'exfil' | 'payload' | 'evade' | 'ops' | 'privesc' | 'team';
 
 export interface PaneConfig {
   id: string;

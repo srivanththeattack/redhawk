@@ -4,6 +4,8 @@ interface C2Config {
   listenHost: string;
   listenPort: number;
   useHttps: boolean;
+  sslCert?: string;
+  sslKey?: string;
   userAgent: string;
 }
 
@@ -50,10 +52,28 @@ export function C2Panel() {
   const [tasks, setTasks] = useState<C2Task[]>([]);
   const [customCommand, setCustomCommand] = useState('');
   const [payloadScript, setPayloadScript] = useState('');
-  const [payloadType, setPayloadType] = useState<'python' | 'powershell'>('python');
+  const [payloadType, setPayloadType] = useState<string>('python');
+  const [beaconSleep, setBeaconSleep] = useState(5);
+  const [beaconJitter, setBeaconJitter] = useState(30);
+  const [beaconKillDate, setBeaconKillDate] = useState('');
   const [log, setLog] = useState<string[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Profile state ──
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<string>('default');
+  const [editingProfile, setEditingProfile] = useState<any>(null);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [profileEditorJson, setProfileEditorJson] = useState('');
+
+  // Load profiles on mount
+  useEffect(() => {
+    window.api.profileList().then((list: any[]) => {
+      setProfiles(list || []);
+      if (list?.length > 0) setSelectedProfile(list[0].name);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -83,16 +103,16 @@ export function C2Panel() {
 
   const handleStart = useCallback(async () => {
     try {
-      const result = await window.api.c2Start(config);
+      const result = await window.api.c2Start({ ...config, profileName: selectedProfile });
       if (result) {
         setServerStatus({ running: true, agents: 0, tasks: 0 });
-        addLog(`C2 server started on ${config.listenHost}:${config.listenPort}`);
+        addLog(`C2 server started on ${config.listenHost}:${config.listenPort} [profile: ${selectedProfile}]`);
         window.api.addActivity({ tab: 'c2', type: 'start', label: 'C2 Server Started', detail: `Listening on ${config.listenHost}:${config.listenPort}${config.useHttps ? ' (HTTPS)' : ''}` });
       }
     } catch (err: any) {
       addLog(`Error: ${err.message}`);
     }
-  }, [config]);
+  }, [config, selectedProfile]);
 
   const handleStop = useCallback(async () => {
     await window.api.c2Stop();
@@ -140,13 +160,14 @@ export function C2Panel() {
 
   const handleGeneratePayload = useCallback(async () => {
     try {
-      const script = await window.api.c2GeneratePayload(payloadType);
+      const kd = beaconKillDate.trim() ? new Date(beaconKillDate).toISOString() : undefined;
+      const script = await window.api.c2GeneratePayload(payloadType, beaconSleep, beaconJitter, kd);
       setPayloadScript(script);
-      addLog(`Generated ${payloadType} payload (${script.length} chars)`);
+      addLog(`Generated ${payloadType} beacon (sleep: ${beaconSleep}s, jitter: ${beaconJitter}%, ${script.length} chars)`);
     } catch (err: any) {
       addLog(`Error: ${err.message}`);
     }
-  }, [payloadType]);
+  }, [payloadType, beaconSleep, beaconJitter, beaconKillDate]);
 
   const selectAgent = useCallback(async (id: string) => {
     setSelectedAgent(id);
@@ -162,7 +183,7 @@ export function C2Panel() {
       <div className="card border-midnight-700/50">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg">📡</span>
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"/></svg>
             <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">C2 Server</h2>
           </div>
           {serverStatus?.running && (
@@ -214,9 +235,158 @@ export function C2Panel() {
           </div>
         </div>
 
+        {/* SSL cert/key picker — shown when HTTPS enabled */}
+        {config.useHttps && (
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <label className="text-[10px] text-gray-500 block mb-1">SSL Certificate (.pem/.crt)</label>
+              <div className="flex gap-1">
+                <input type="text" value={config.sslCert || ''}
+                  onChange={(e) => setConfig({ ...config, sslCert: e.target.value })}
+                  className="input-field h-8 text-[10px] font-mono flex-1" placeholder="C:\certs\cert.pem"
+                  disabled={serverStatus?.running} />
+                <button onClick={async () => {
+                  const result = await window.api.dialogOpenFile({ filters: [{ name: 'Certificates', extensions: ['pem', 'crt', 'cert'] }] });
+                  if (result) setConfig({ ...config, sslCert: result });
+                }} disabled={serverStatus?.running}
+                  className="btn-secondary text-[10px] px-2 h-8">Browse</button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 block mb-1">SSL Key (.pem/.key)</label>
+              <div className="flex gap-1">
+                <input type="text" value={config.sslKey || ''}
+                  onChange={(e) => setConfig({ ...config, sslKey: e.target.value })}
+                  className="input-field h-8 text-[10px] font-mono flex-1" placeholder="C:\certs\key.pem"
+                  disabled={serverStatus?.running} />
+                <button onClick={async () => {
+                  const result = await window.api.dialogOpenFile({ filters: [{ name: 'Keys', extensions: ['pem', 'key'] }] });
+                  if (result) setConfig({ ...config, sslKey: result });
+                }} disabled={serverStatus?.running}
+                  className="btn-secondary text-[10px] px-2 h-8">Browse</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Status refresh */}
         {serverStatus?.running && (
           <button onClick={handleRefresh} className="btn-ghost text-xs">↻ Refresh Status</button>
+        )}
+      </div>
+
+      {/* ── C2 Profile Selector ── */}
+      <div className="card border-midnight-700/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Communication Profile</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={async () => {
+              setShowProfileEditor(!showProfileEditor);
+              if (!showProfileEditor) {
+                const p = await window.api.profileGet(selectedProfile);
+                setEditingProfile(p);
+                setProfileEditorJson(JSON.stringify(p, null, 2));
+              }
+            }} className="btn-secondary text-[10px] px-2">
+              {showProfileEditor ? '✕ Close' : '✎ Edit'}
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <select value={selectedProfile} onChange={async (e) => {
+            const name = e.target.value;
+            setSelectedProfile(name);
+            setConfig({ ...config, profileName: name } as any);
+            const p = await window.api.profileGet(name);
+            setEditingProfile(p);
+          }}
+            className="input-field py-1.5 text-xs flex-1"
+            disabled={serverStatus?.running}>
+            {profiles.map((p: any) => (
+              <option key={p.name} value={p.name} className="bg-midnight-900 text-gray-100">
+                {p.name} — {p.description?.slice(0, 60)}
+              </option>
+            ))}
+          </select>
+          {editingProfile && (
+            <div className="flex gap-1">
+              <span className="text-[10px] text-gray-600 px-1 py-1">
+                {editingProfile.http.get.uri} → {editingProfile.http.post.uri}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Inline profile editor */}
+        {showProfileEditor && editingProfile && (
+          <div className="mt-2 border border-midnight-700 rounded overflow-hidden">
+            <div className="bg-midnight-950 px-2 py-1 flex items-center justify-between">
+              <span className="text-[9px] text-gray-500 font-mono">{editingProfile.name}.json</span>
+              <div className="flex gap-1">
+                <button onClick={async () => {
+                  try {
+                    const parsed = JSON.parse(profileEditorJson);
+                    const result = await window.api.profileSave(parsed);
+                    if (result.success) {
+                      addLog(`Profile "${parsed.name}" saved`);
+                      const list = await window.api.profileList();
+                      setProfiles(list || []);
+                      setEditingProfile(parsed);
+                    } else {
+                      addLog('Failed to save profile');
+                    }
+                  } catch (e: any) {
+                    addLog(`JSON error: ${e.message}`);
+                  }
+                }} className="text-[9px] px-2 py-0.5 rounded bg-green-900/30 text-green-400 border border-green-700/40 hover:bg-green-900/50">
+                  Save
+                </button>
+                <button onClick={async () => {
+                  const name = prompt('New profile name:');
+                  if (!name) return;
+                  try {
+                    const parsed = JSON.parse(profileEditorJson);
+                    parsed.name = name.trim();
+                    const result = await window.api.profileSave(parsed);
+                    if (result.success) {
+                      addLog(`Profile "${name}" saved as new`);
+                      const list = await window.api.profileList();
+                      setProfiles(list || []);
+                      setSelectedProfile(name);
+                      setEditingProfile(parsed);
+                    }
+                  } catch (e: any) {
+                    addLog(`Error: ${e.message}`);
+                  }
+                }} className="text-[9px] px-2 py-0.5 rounded bg-blue-900/30 text-blue-400 border border-blue-700/40 hover:bg-blue-900/50">
+                  Save As New
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={profileEditorJson}
+              onChange={(e) => setProfileEditorJson(e.target.value)}
+              className="w-full bg-midnight-950 text-green-400 text-[10px] font-mono p-2 border-0 outline-none resize-y"
+              style={{ minHeight: '200px', maxHeight: '400px' }}
+              spellCheck={false}
+            />
+          </div>
+        )}
+
+        {/* Quick overview of active profile settings */}
+        {editingProfile && !showProfileEditor && (
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5 text-[9px] text-gray-600">
+            <span>Check-in: <span className="text-gray-400 font-mono">{editingProfile.http.get.uri}</span></span>
+            <span>Result: <span className="text-gray-400 font-mono">{editingProfile.http.post.uri}</span></span>
+            <span>UA: <span className="text-gray-400">{editingProfile.http.userAgent.slice(0, 40)}...</span></span>
+            <span>Jitter: <span className="text-gray-400">{editingProfile.http.jitter}%</span></span>
+            <span>Sleep: <span className="text-gray-400">{editingProfile.http.sleep}s</span></span>
+          </div>
         )}
       </div>
 
@@ -228,7 +398,7 @@ export function C2Panel() {
             <div className="card-header">Agents ({agents.length})</div>
             {agents.length === 0 ? (
               <div className="text-center py-6 text-gray-600">
-                <span className="text-2xl block mb-2">📡</span>
+                <svg className="w-6 h-6 mb-2 text-gray-600 mx-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"/></svg>
                 <p className="text-xs">Waiting for agents to connect...</p>
                 <p className="text-[10px] mt-2 text-gray-500">
                   1. Generate a payload below → Copy the script<br />
@@ -278,7 +448,7 @@ export function C2Panel() {
               <span>Command Console {selectedAgent ? `— ${selectedAgent}` : ''}</span>
               {selectedAgent && (
                 <button onClick={() => handleSendCommand('screenshot')} className="btn-ghost text-xs">
-                  📸 Screenshot
+                  Screenshot
                 </button>
               )}
             </div>
@@ -352,40 +522,74 @@ export function C2Panel() {
       {/* ── Payload Generation ── */}
       <div className="card">
         <div className="card-header">Generate Agent Payload</div>
-        <div className="flex items-center gap-3 mb-3">
-          <select value={payloadType} onChange={(e) => setPayloadType(e.target.value as any)}
-            className="input-field h-9 text-xs w-44">
-            <option value="python" className="bg-midnight-900">🐍 Python</option>
-            <option value="powershell" className="bg-midnight-900">💻 PowerShell</option>
-            <option value="powershell-amsi" className="bg-midnight-900">🛡️ PowerShell (AMSI Bypass)</option>
-            <option value="batch" className="bg-midnight-900">📝 Batch (.bat)</option>
-            <option value="bash" className="bg-midnight-900">🐧 Bash (Linux)</option>
-            <option value="sh" className="bg-midnight-900">⚙️ SH (BusyBox)</option>
-            <option value="csharp" className="bg-midnight-900">🔷 C# (.NET)</option>
-            <option value="vba" className="bg-midnight-900">📎 VBA Macro</option>
-            <option value="nim" className="bg-midnight-900">🦀 Nim</option>
-            <option value="rust" className="bg-midnight-900">⚡ Rust</option>
-          </select>
-          <button onClick={handleGeneratePayload} className="btn-primary h-9 text-xs">
-            Generate
+        {/* Beacon config */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Target Runtime</label>
+            <select value={payloadType} onChange={(e) => setPayloadType(e.target.value as any)}
+              className="input-field py-1.5 text-xs">
+              <option value="python" className="bg-midnight-900 text-gray-100">Python</option>
+              <option value="powershell" className="bg-midnight-900 text-gray-100">PowerShell</option>
+              <option value="powershell-amsi" className="bg-midnight-900 text-gray-100">PS (AMSI Bypass)</option>
+              <option value="batch" className="bg-midnight-900 text-gray-100">Batch (.bat)</option>
+              <option value="bash" className="bg-midnight-900 text-gray-100">Bash (Linux)</option>
+              <option value="sh" className="bg-midnight-900 text-gray-100">SH (BusyBox)</option>
+              <option value="csharp" className="bg-midnight-900 text-gray-100">C# (.NET)</option>
+              <option value="vba" className="bg-midnight-900 text-gray-100">VBA Macro</option>
+              <option value="nim" className="bg-midnight-900 text-gray-100">Nim</option>
+              <option value="rust" className="bg-midnight-900 text-gray-100">Rust</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Sleep Interval (s)</label>
+            <input type="number" min="1" max="3600" value={beaconSleep}
+              onChange={(e) => setBeaconSleep(parseInt(e.target.value) || 5)}
+              className="input-field h-8 text-xs font-mono" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Jitter (%)</label>
+            <input type="number" min="0" max="100" value={beaconJitter}
+              onChange={(e) => setBeaconJitter(parseInt(e.target.value) || 0)}
+              className="input-field h-8 text-xs font-mono" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-1">Kill Date (optional)</label>
+            <input type="date" value={beaconKillDate}
+              onChange={(e) => setBeaconKillDate(e.target.value)}
+              className="input-field h-8 text-xs font-mono" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handleGeneratePayload} className="btn-primary h-9 text-xs flex-1">
+            Generate Beacon
           </button>
           {payloadScript && (
             <button onClick={() => { navigator.clipboard.writeText(payloadScript); }}
-              className="btn-ghost text-xs">📋 Copy</button>
+              className="btn-ghost text-xs">Copy</button>
           )}
         </div>
         {payloadScript && (
-          <pre className="terminal text-[10px] max-h-48 overflow-y-auto whitespace-pre-wrap">
+          <pre className="terminal text-[10px] max-h-48 overflow-y-auto whitespace-pre-wrap mt-2">
             {payloadScript}
           </pre>
         )}
         <div className="mt-3 space-y-1 text-[10px] text-gray-500 border-t border-midnight-800 pt-3">
-          <p><span className="text-yellow-400">①</span> Click <span className="text-green-400">Generate</span> then <span className="text-green-400">📋 Copy</span></p>
-          <p><span className="text-yellow-400">②</span> Save as <code className="bg-midnight-950 px-1 rounded text-green-400">agent.py</code> on the target machine</p>
-          <p><span className="text-yellow-400">③</span> Run in a <span className="text-yellow-400">separate terminal</span> and <span className="text-yellow-400">keep it open</span>:</p>
-          <code className="bg-midnight-950 px-2 py-1 rounded text-green-400 block font-mono mt-1">python agent.py</code>
-          <p className="text-gray-600 mt-1">The agent loops every 5s checking for commands. Results appear in the command console above.</p>
-          <p className="text-gray-600">For remote targets, change <code className="bg-midnight-950 px-1 rounded">127.0.0.1</code> in the script to your C2 server's IP.</p>
+          <p><span className="text-yellow-400">①</span> Set the sleep/jitter values above, then click <span className="text-green-400">Generate Beacon</span></p>
+          <p><span className="text-yellow-400">②</span> Copy the script and deploy it on the target machine</p>
+          <p><span className="text-yellow-400">③</span> Keep the target process running — the beacon polls every {beaconSleep}s ±{beaconJitter}%</p>
+          <p className="text-gray-600 mt-1">
+            For remote targets, replace <code className="bg-midnight-950 px-1 rounded">127.0.0.1</code> in the script
+            with your C2 server's public IP.
+          </p>
+          {payloadType === 'powershell-amsi' && (
+            <p className="text-green-500 mt-1">⚠ AMSI-bypassed: may trigger Windows Defender on recent builds</p>
+          )}
+          {payloadType === 'python' && (
+            <p className="text-blue-400 mt-1">ℹ Target needs Python 3 installed. Check with <code className="bg-midnight-950 px-1 rounded">python --version</code></p>
+          )}
+          {payloadType === 'powershell' && (
+            <p className="text-blue-400 mt-1">ℹ PowerShell 5+ required. Available on all modern Windows targets.</p>
+          )}
         </div>
       </div>
 

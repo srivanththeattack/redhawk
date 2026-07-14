@@ -15,8 +15,20 @@ export interface RedHawkApi {
   getTarget: () => Promise<string | null>;
 
   // Dependencies
-  checkDeps: () => Promise<{ nmap: boolean; python: boolean; pip: boolean; all: boolean }>;
+  checkDeps: () => Promise<{
+    nmap: { installed: boolean; version?: string; path?: string; detail?: string };
+    python: { installed: boolean; version?: string; path?: string; detail?: string };
+    pip: { installed: boolean; version?: string; path?: string; detail?: string };
+    metasploit: { installed: boolean; version?: string; path?: string; detail?: string };
+    msfRunning: { installed: boolean; version?: string; path?: string; detail?: string };
+    evilginx: { installed: boolean; version?: string; path?: string; detail?: string };
+    wsl: { installed: boolean; version?: string; path?: string; detail?: string };
+    all: boolean;
+  }>;
   installDeps: (confirm: boolean) => Promise<{ success: boolean; results: Record<string, any> }>;
+
+  // Dialogs
+  dialogOpenFile: (options: { filters: { name: string; extensions: string[] }[] }) => Promise<string | null>;
 
   // Recon
   runWhois: (domain: string) => Promise<any>;
@@ -32,6 +44,11 @@ export interface RedHawkApi {
   runDirBrute: (domain: string, wordlist?: string[]) => Promise<any>;
   runServiceScan: (ip: string) => Promise<any>;
   runVulnScan: (ip: string) => Promise<any>;
+
+  // Additional Recon
+  runGeoIp: (target: string) => Promise<any>;
+  runReverseDns: (target: string) => Promise<any>;
+  runPortHealth: (target: string, port: number) => Promise<any>;
 
   // Google Dorking
   runGoogleDork: (query: string) => Promise<any>;
@@ -52,6 +69,28 @@ export interface RedHawkApi {
   phishStopCampaign: (campaignId: string) => Promise<any>;
   phishGetCredentials: (campaignId: string) => Promise<any>;
   phishDeleteCampaign: (campaignId: string) => Promise<any>;
+  phishImportPhishlet: () => Promise<{ success: boolean; message: string }>;
+
+  // Team / Collaboration
+  teamHeartbeat: (memberId: string, name: string, target?: string, tab?: string) => Promise<any>;
+  teamGetMembers: () => Promise<any[]>;
+  teamAddActivity: (entry: any) => Promise<any>;
+  teamGetActivity: (limit?: number) => Promise<any[]>;
+  teamAddFinding: (finding: any) => Promise<any>;
+  teamUpdateFinding: (id: string, updates: any) => Promise<any>;
+  teamGetFindings: (target?: string) => Promise<any[]>;
+  teamDeleteFinding: (id: string) => Promise<boolean>;
+  teamAddNote: (note: any) => Promise<any>;
+  teamGetNotes: (target?: string) => Promise<any[]>;
+  teamDeleteNote: (id: string) => Promise<boolean>;
+  teamAddTodo: (todo: any) => Promise<any>;
+  teamUpdateTodo: (id: string, updates: any) => Promise<any>;
+  teamGetTodos: () => Promise<any[]>;
+  teamDeleteTodo: (id: string) => Promise<boolean>;
+  teamGetTargets: () => Promise<any[]>;
+  teamCheckinTarget: (target: string, memberId: string, memberName: string) => Promise<any>;
+  teamCheckoutTarget: (target: string, memberId: string, memberName: string) => Promise<any>;
+  teamUpdateTarget: (target: string, updates: any) => Promise<any>;
 
   // C2 Server
   c2Start: (config: any) => Promise<any>;
@@ -61,7 +100,13 @@ export interface RedHawkApi {
   c2Tasks: (agentId: string) => Promise<any>;
   c2SendCommand: (agentId: string, command: string) => Promise<any>;
   c2Broadcast: (command: string) => Promise<any>;
-  c2GeneratePayload: (type: string) => Promise<any>;
+  c2GeneratePayload: (type: string, sleepSeconds?: number, jitterPercent?: number, killDate?: string) => Promise<any>;
+
+  // C2 Profiles
+  profileList: () => Promise<any>;
+  profileGet: (name: string) => Promise<any>;
+  profileSave: (profile: any) => Promise<any>;
+  profileDelete: (name: string) => Promise<any>;
 
   // Exfiltration
   exfilJobs: () => Promise<any>;
@@ -97,6 +142,7 @@ export interface RedHawkApi {
   payloadGenerate: (type: string, lhost: string, lport: number, kind?: string) => Promise<string>;
   payloadObfuscate: (payload: string, method: string) => Promise<string>;
   payloadSave: (payload: string, filename: string) => Promise<{ success: boolean; filePath?: string }>;
+  payloadImport: () => Promise<{ filePath: string; content: string } | null>;
 
   // Evasion
   evasionGetBypasses: () => Promise<{ name: string; code: string; description: string }[]>;

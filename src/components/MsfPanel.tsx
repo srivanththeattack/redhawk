@@ -305,20 +305,20 @@ export function MsfPanel() {
                   <select
                     value={payloadType}
                     onChange={(e) => setPayloadType(e.target.value)}
-                    className="input-field h-9 text-sm"
+                    className="input-field py-1.5 text-sm"
                   >
                     {PAYLOAD_TYPES.map((p, i) => (
-                      <option key={i} value={p.value} className="bg-midnight-900">{p.label}</option>
+                      <option key={i} value={p.value} className="bg-midnight-900 text-gray-100">{p.label}</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 block mb-1">Format</label>
-                  <select className="input-field h-9 text-sm" defaultValue="exe">
-                    <option value="exe" className="bg-midnight-900">EXE</option>
-                    <option value="ps1" className="bg-midnight-900">PowerShell</option>
-                    <option value="py" className="bg-midnight-900">Python</option>
-                    <option value="raw" className="bg-midnight-900">Raw</option>
+                  <select className="input-field py-1.5 text-sm" defaultValue="exe">
+                    <option value="exe" className="bg-midnight-900 text-gray-100">EXE</option>
+                    <option value="ps1" className="bg-midnight-900 text-gray-100">PowerShell</option>
+                    <option value="py" className="bg-midnight-900 text-gray-100">Python</option>
+                    <option value="raw" className="bg-midnight-900 text-gray-100">Raw</option>
                   </select>
                 </div>
               </div>

@@ -267,6 +267,7 @@ export function useScan() {
     disclaimerAccepted,
     scanTasks,
     killChain,
+    appendOutput,
     setTarget,
     acceptDisclaimer,
     startScan,

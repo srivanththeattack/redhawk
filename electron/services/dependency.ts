@@ -1,7 +1,15 @@
 import { execSync, spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as net from 'net';
 import { paths } from './paths';
+
+export interface DepDetail {
+  installed: boolean;
+  version?: string;
+  path?: string;
+  detail?: string;
+}
 
 export class DependencyChecker {
   private userDataPath: string;
@@ -14,27 +22,76 @@ export class DependencyChecker {
    * Check all required dependencies
    */
   async checkAll(): Promise<{
-    nmap: boolean;
-    python: boolean;
-    pip: boolean;
-    metasploit: boolean;
-    evilginx: boolean;
+    nmap: DepDetail;
+    python: DepDetail;
+    pip: DepDetail;
+    metasploit: DepDetail;
+    msfRunning: DepDetail;
+    evilginx: DepDetail;
+    wsl: DepDetail;
     all: boolean;
   }> {
     const nmap = await this.checkNmap();
     const python = await this.checkPython();
     const pip = await this.checkPip();
     const metasploit = await this.checkMetasploit();
+    const msfRunning = await this.checkMsfRunning();
     const evilginx = await this.checkEvilginx();
+    const wsl = await this.checkWsl();
 
     return {
       nmap,
       python,
       pip,
       metasploit,
+      msfRunning,
       evilginx,
-      all: nmap && python && pip,
+      wsl,
+      all: nmap.installed && python.installed && pip.installed,
     };
+  }
+
+  /**
+   * Check if msfrpcd is actually listening by trying a TCP connect
+   */
+  private async checkMsfRunning(): Promise<DepDetail> {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      const timer = setTimeout(() => {
+        socket.destroy();
+        resolve({ installed: false, detail: 'Connection timed out (default port 55553)' });
+      }, 3000);
+      socket.setTimeout(3000);
+      socket.on('connect', () => {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve({ installed: true, detail: 'msfrpcd is listening on localhost:55553' });
+      });
+      socket.on('error', (err: any) => {
+        clearTimeout(timer);
+        resolve({ installed: false, detail: `Cannot connect: ${err.message}` });
+      });
+      socket.on('timeout', () => {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve({ installed: false, detail: 'Connection timed out' });
+      });
+      socket.connect(55553, '127.0.0.1');
+    });
+  }
+
+  private async checkWsl(): Promise<DepDetail> {
+    const wslBin = `${process.env.SystemRoot}\\System32\\wsl.exe`;
+    const wslAlt = `${process.env.SystemRoot}\\Sysnative\\wsl.exe`;
+    const wslPath = fs.existsSync(wslBin) ? wslBin : fs.existsSync(wslAlt) ? wslAlt : null;
+    if (!wslPath) return { installed: false, detail: 'WSL not installed (wsl.exe not found)' };
+    try {
+      const distros = execSync('wsl -l -q', { stdio: 'pipe', timeout: 5000 }).toString().trim().split('\n').filter(Boolean);
+      if (distros.length === 0) return { installed: true, detail: 'WSL installed but no distros found', path: wslPath };
+      return { installed: true, detail: `WSL distros: ${distros.join(', ')}`, path: wslPath, version: distros[0] };
+    } catch (err: any) {
+      return { installed: true, detail: `WSL binary found but listing failed: ${err.message}`, path: wslPath };
+    }
   }
 
   /**
@@ -44,24 +101,40 @@ export class DependencyChecker {
     const results: Record<string, any> = {};
 
     const nmapOk = await this.checkNmap();
-    if (!nmapOk) {
+    if (!nmapOk.installed) {
       results.nmap = await this.installNmap();
     } else {
-      results.nmap = { status: 'already_installed' };
+      results.nmap = { status: 'already_installed', detail: nmapOk.detail };
     }
 
     const pythonOk = await this.checkPython();
-    if (!pythonOk) {
+    if (!pythonOk.installed) {
       results.python = await this.installPython();
     } else {
-      results.python = { status: 'already_installed' };
+      results.python = { status: 'already_installed', version: pythonOk.version };
     }
 
     const pipOk = await this.checkPip();
-    if (!pipOk) {
+    if (!pipOk.installed) {
       results.pip = await this.installPipPackages();
     } else {
-      results.pip = { status: 'already_installed' };
+      results.pip = { status: 'already_installed', version: pipOk.version };
+    }
+
+    // Attempt to install Metasploit if missing (via script)
+    const msfOk = await this.checkMetasploit();
+    if (!msfOk.installed) {
+      results.metasploit = await this.installMetasploit();
+    } else {
+      results.metasploit = { status: 'already_installed', path: msfOk.path };
+    }
+
+    // Attempt to install Evilginx if missing (via script)
+    const evilginxOk = await this.checkEvilginx();
+    if (!evilginxOk.installed) {
+      results.evilginx = await this.installEvilginx();
+    } else {
+      results.evilginx = { status: 'already_installed', path: evilginxOk.path };
     }
 
     const allOk = Object.values(results).every(
@@ -103,19 +176,32 @@ export class DependencyChecker {
     return { success: false, message: 'Installer script not found' };
   }
 
-  private async checkMetasploit(): Promise<boolean> {
-    const paths = [
-      'C:\\metasploit\\MSP\\msfrpcd.exe',
-      `${process.env.ProgramFiles}\\Metasploit\\MSP\\msfrpcd.exe`,
+  private async checkMetasploit(): Promise<DepDetail> {
+    const msfPaths = [
+      { p: 'C:\\metasploit\\MSP\\msfrpcd.exe', label: 'C:\\metasploit' },
+      { p: `${process.env.ProgramFiles}\\Metasploit\\MSP\\msfrpcd.exe`, label: 'Program Files' },
+      { p: `${process.env.LOCALAPPDATA}\\Metasploit\\msfrpcd.exe`, label: 'LocalAppData' },
     ];
-    return paths.some((p) => fs.existsSync(p));
+    for (const entry of msfPaths) {
+      if (fs.existsSync(entry.p)) {
+        try {
+          const ver = execSync(`"${entry.p}" --version 2>/dev/null || echo "unknown"`, { timeout: 3000, shell: true as any })
+            .toString().trim();
+          return { installed: true, path: entry.p, version: ver, detail: `Found at ${entry.label}` };
+        } catch {
+          return { installed: true, path: entry.p, detail: `Found at ${entry.label} (version unknown)` };
+        }
+      }
+    }
+    return { installed: false, detail: 'Metasploit not found in any standard path' };
   }
 
-  private async checkEvilginx(): Promise<boolean> {
+  private async checkEvilginx(): Promise<DepDetail> {
     // 1. Check Windows PATH
     try {
-      execSync('where evilginx2', { stdio: 'ignore', timeout: 3000, shell: true as any });
-      return true;
+      const result = execSync('where evilginx2', { stdio: 'pipe', timeout: 3000, shell: true as any });
+      const p = result.toString().trim().split('\n')[0];
+      return { installed: true, path: p, detail: 'Found on PATH' };
     } catch {
       // Not on PATH
     }
@@ -127,56 +213,83 @@ export class DependencyChecker {
       `${process.env.ProgramFiles}\\evilginx2\\evilginx2.exe`,
       `${process.env.LOCALAPPDATA}\\Programs\\evilginx2\\evilginx2.exe`,
       `C:\\cybersec stuff\\evilginx2\\evilginx2.exe`,
+      `C:\\tools\\evilginx2\\evilginx2.exe`,
     ];
-    if (knownPaths.some((p) => fs.existsSync(p))) return true;
-
-    // 3. Check WSL (only if wsl.exe actually exists)
-    const wslPaths = [
-      `${process.env.SystemRoot}\\System32\\wsl.exe`,
-      `${process.env.SystemRoot}\\Sysnative\\wsl.exe`,
-    ];
-    if (wslPaths.some((p) => fs.existsSync(p))) {
-      try {
-        const wslCheck = execSync('wsl which evilginx2 2>/dev/null || echo ""', { timeout: 3000 }).toString().trim();
-        if (wslCheck) return true;
-      } catch {
-        // wsl exists but not evilginx2
+    for (const p of knownPaths) {
+      if (fs.existsSync(p)) {
+        return { installed: true, path: p, detail: 'Found in known location' };
       }
     }
 
-    return false;
+    // 3. Check WSL with distro awareness
+    const wslBin = `${process.env.SystemRoot}\\System32\\wsl.exe`;
+    const wslAlt = `${process.env.SystemRoot}\\Sysnative\\wsl.exe`;
+    const wslExe = fs.existsSync(wslBin) ? wslBin : fs.existsSync(wslAlt) ? wslAlt : null;
+    if (wslExe) {
+      try {
+        // Try common distros
+        for (const distro of ['Ubuntu', 'Debian', 'kali-linux']) {
+          try {
+            const installed = execSync(`wsl -d ${distro} which evilginx2 2>/dev/null || echo ""`, { timeout: 5000 })
+              .toString().trim();
+            if (installed) {
+              return { installed: true, path: `WSL(${distro}):${installed}`, detail: `Installed in WSL ${distro}` };
+            }
+          } catch {
+            continue;
+          }
+        }
+        // Fallback: try default distro
+        const result = execSync('wsl which evilginx2 2>/dev/null || echo ""', { timeout: 3000 }).toString().trim();
+        if (result) return { installed: true, path: `WSL:${result}`, detail: 'Installed in WSL (default distro)' };
+      } catch {
+        // WSL exists but evilginx2 not found
+      }
+      return { installed: false, detail: 'WSL available but evilginx2 not found in any distro' };
+    }
+
+    return { installed: false, detail: 'Evilginx2 not found on PATH, in standard paths, or in WSL' };
   }
 
-  private async checkNmap(): Promise<boolean> {
+  private async checkNmap(): Promise<DepDetail> {
     try {
-      execSync('where nmap', { stdio: 'ignore', shell: true as any });
-      return true;
+      const result = execSync('where nmap', { stdio: 'pipe', timeout: 3000, shell: true as any });
+      const p = result.toString().trim().split('\n')[0];
+      const ver = execSync('nmap --version 2>/dev/null | findstr /i "version"', { timeout: 3000, shell: true as any })
+        .toString().trim().split('\n')[0] || 'unknown';
+      return { installed: true, path: p, version: ver, detail: 'Found on PATH' };
     } catch {
-      // Check common install paths
       const nmapPaths = [
         'C:\\Program Files (x86)\\Nmap\\nmap.exe',
         'C:\\Program Files\\Nmap\\nmap.exe',
       ];
-      return nmapPaths.some((p) => fs.existsSync(p));
+      for (const p of nmapPaths) {
+        if (fs.existsSync(p)) return { installed: true, path: p, detail: 'Found in Program Files' };
+      }
+      return { installed: false, detail: 'Nmap not found' };
     }
   }
 
-  private async checkPython(): Promise<boolean> {
+  private async checkPython(): Promise<DepDetail> {
     try {
-      execSync('python --version', { stdio: 'ignore', shell: true as any });
-      return true;
+      const result = execSync('python --version', { stdio: 'pipe', timeout: 3000, shell: true as any });
+      const ver = result.toString().trim();
+      return { installed: true, version: ver, detail: 'Found on PATH' };
     } catch {
-      // Check embedded python
-      return fs.existsSync(paths.pythonExe);
+      if (fs.existsSync(paths.pythonExe)) {
+        return { installed: true, path: paths.pythonExe, detail: 'Embedded Python' };
+      }
+      return { installed: false, detail: 'Python not found' };
     }
   }
 
-  private async checkPip(): Promise<boolean> {
+  private async checkPip(): Promise<DepDetail> {
     try {
-      execSync('python -m pip --version', { stdio: 'ignore', shell: true as any });
-      return true;
+      const result = execSync('python -m pip --version', { stdio: 'pipe', timeout: 3000, shell: true as any });
+      const ver = result.toString().trim();
+      return { installed: true, version: ver, detail: 'pip available' };
     } catch {
-      return false;
+      return { installed: false, detail: 'pip not available' };
     }
   }
 

@@ -25,22 +25,42 @@ function applySettingsTheme(themeId: string) {
   root.style.setProperty('--theme-gradient-to', c.gradientTo);
 }
 
-const TAB_INFO: Record<TabId, { label: string; icon: string; desc: string }> = {
-  recon: { label: 'Recon', icon: '🔍', desc: 'Target recon, OSINT, port scanning' },
-  exploit: { label: 'Exploit', icon: '💀', desc: 'Metasploit integration' },
-  phish: { label: 'Phish', icon: '🎣', desc: 'Phishing campaigns via evilginx2' },
-  payload: { label: 'Payload', icon: '📦', desc: 'Payload factory — generate, obfuscate' },
-  evade: { label: 'Evade', icon: '🛡️', desc: 'AV/EDR evasion' },
-  privesc: { label: 'Privesc', icon: '⬆️', desc: 'Privilege escalation' },
-  c2: { label: 'C2', icon: '📡', desc: 'Command & control server' },
-  exfil: { label: 'Exfil', icon: '📤', desc: 'Data exfiltration' },
-  ops: { label: 'Ops', icon: '📋', desc: 'Operation dashboard' },
+function TabSettingsIcon({ tabId }: { tabId: TabId }) {
+  const cls = 'w-4 h-4';
+  const icons: Record<TabId, React.ReactNode> = {
+    recon: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /><path d="M11 8v6" /><path d="M8 11h6" /></svg>,
+    exploit: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1010 10 10 10 0 00-10-10z" /><path d="M7.5 15.5a5 5 0 019 0" /><circle cx="9" cy="9" r=".5" fill="currentColor" /><circle cx="15" cy="9" r=".5" fill="currentColor" /></svg>,
+    phish: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 6a16 16 0 0116 0" /><path d="M4 12a12 12 0 0116 0" /><path d="M8 18a8 8 0 018 0" /><path d="M12 2v4" /><path d="M12 14v8" /><path d="M9 19l3 3 3-3" /></svg>,
+    payload: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M9 21V9" /><path d="M12 13l3-3" /><path d="M12 13l-3-3" /></svg>,
+    evade: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2l9 5v6c0 5.5-4.5 9.5-9 11-4.5-1.5-9-5.5-9-11V7z" /><path d="M9 12l2 2 4-4" /></svg>,
+    privesc: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20V8" /><path d="M5 15l7-7 7 7" /><path d="M4 4h16" /></svg>,
+    c2: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 7a7 7 0 0114 0" /><path d="M8 11a4 4 0 018 0" /><circle cx="12" cy="16" r="1" fill="currentColor" /><path d="M12 17v3" /><path d="M8 22h8" /></svg>,
+    exfil: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M7 10l5-5 5 5" /><path d="M12 15V5" /></svg>,
+    ops: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>,
+    team: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>,
+  };
+  return <>{icons[tabId]}</>;
+}
+
+const TAB_INFO: Record<TabId, { label: string; icon: React.ReactNode; desc: string }> = {
+  recon: { label: 'Recon', icon: <TabSettingsIcon tabId="recon" />, desc: 'Target recon, OSINT, port scanning' },
+  exploit: { label: 'Exploit', icon: <TabSettingsIcon tabId="exploit" />, desc: 'Metasploit integration' },
+  phish: { label: 'Phish', icon: <TabSettingsIcon tabId="phish" />, desc: 'Phishing campaigns via evilginx2' },
+  payload: { label: 'Payload', icon: <TabSettingsIcon tabId="payload" />, desc: 'Payload factory — generate, obfuscate' },
+  evade: { label: 'Evade', icon: <TabSettingsIcon tabId="evade" />, desc: 'AV/EDR evasion' },
+  privesc: { label: 'Privesc', icon: <TabSettingsIcon tabId="privesc" />, desc: 'Privilege escalation' },
+  c2: { label: 'C2', icon: <TabSettingsIcon tabId="c2" />, desc: 'Command & control server' },
+  exfil: { label: 'Exfil', icon: <TabSettingsIcon tabId="exfil" />, desc: 'Data exfiltration' },
+  ops: { label: 'Ops', icon: <TabSettingsIcon tabId="ops" />, desc: 'Operation dashboard' },
+  team: { label: 'Team', icon: <TabSettingsIcon tabId="team" />, desc: 'Team coordination' },
 };
 
 interface SettingsPanelProps {
   onClose: () => void;
   isSplit: boolean;
   onToggleSplit: (enabled: boolean) => void;
+  onToggleCompact: (enabled: boolean) => void;
+  onToggleStatusBar: (enabled: boolean) => void;
   onTabOrderChange: (order: TabId[]) => void;
 }
 
@@ -59,29 +79,43 @@ function savePref(key: string, value: boolean) {
 }
 
 function loadTabOrder(): TabId[] {
+  const ALL_TABS: TabId[] = ['recon', 'exploit', 'phish', 'payload', 'evade', 'privesc', 'c2', 'exfil', 'ops', 'team'];
   try {
     const saved = localStorage.getItem('redhawk_tab_order');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: TabId[] = JSON.parse(saved);
+      for (const t of ALL_TABS) {
+        if (!parsed.includes(t)) parsed.push(t);
+      }
+      return parsed;
+    }
   } catch {}
-  return ['recon', 'exploit', 'phish', 'payload', 'evade', 'privesc', 'c2', 'exfil', 'ops'];
+  return ALL_TABS;
 }
 function saveTabOrder(tabs: TabId[]) {
   try { localStorage.setItem('redhawk_tab_order', JSON.stringify(tabs)); } catch {}
 }
 
-const SIDEBAR_ITEMS: { id: SettingsPage; icon: string; label: string }[] = [
-  { id: 'general', icon: '⚙️', label: 'General' },
-  { id: 'tabs', icon: '🔀', label: 'Tab Order' },
-  { id: 'appearance', icon: '🎨', label: 'Appearance' },
-  { id: 'operations', icon: '📋', label: 'Operations' },
+function SvgIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+      {children}
+    </svg>
+  );
+}
+
+const SIDEBAR_ITEMS: { id: SettingsPage; icon: React.ReactNode; label: string }[] = [
+  { id: 'general', icon: <SvgIcon><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></SvgIcon>, label: 'General' },
+  { id: 'tabs', icon: <SvgIcon><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></SvgIcon>, label: 'Tab Order' },
+  { id: 'appearance', icon: <SvgIcon><circle cx="12" cy="12" r="3" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></SvgIcon>, label: 'Appearance' },
+  { id: 'operations', icon: <SvgIcon><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" /><rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 12h6M9 16h6" /></SvgIcon>, label: 'Operations' },
 ];
 
-export function SettingsPanel({ onClose, isSplit, onToggleSplit, onTabOrderChange }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, isSplit, onToggleSplit, onToggleCompact, onToggleStatusBar, onTabOrderChange }: SettingsPanelProps) {
   const [page, setPage] = useState<SettingsPage>('general');
 
   // Preferences
   const [splitEnabled, setSplitEnabled] = useState(() => loadPref('redhawk_split_enabled', true));
-  const [liveOutput, setLiveOutput] = useState(() => loadPref('redhawk_live_output', true));
   const [autoSave, setAutoSave] = useState(() => loadPref('redhawk_auto_save', true));
   const [showStatusBar, setShowStatusBar] = useState(() => loadPref('redhawk_show_status', true));
   const [compactMode, setCompactMode] = useState(() => loadPref('redhawk_compact', false));
@@ -129,7 +163,7 @@ export function SettingsPanel({ onClose, isSplit, onToggleSplit, onTabOrderChang
               <button key={item.id} onClick={() => setPage(item.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs transition-all ${
                   page === item.id
-                    ? 'bg-redhawk-600/15 text-redhawk-400 border border-redhawk-600/20'
+                    ? 'bg-redhawk-600/15 text-white border border-redhawk-600/20'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-midnight-800/40 border border-transparent'
                 }`}>
                 <span className="text-sm">{item.icon}</span>
@@ -145,15 +179,13 @@ export function SettingsPanel({ onClose, isSplit, onToggleSplit, onTabOrderChang
             {page === 'general' && (
               <GeneralSettings
                 splitEnabled={splitEnabled}
-                liveOutput={liveOutput}
                 autoSave={autoSave}
                 showStatusBar={showStatusBar}
                 compactMode={compactMode}
                 onSetSplitEnabled={(v) => { setSplitEnabled(v); savePref('redhawk_split_enabled', v); onToggleSplit(v); }}
-                onSetLiveOutput={(v) => { setLiveOutput(v); savePref('redhawk_live_output', v); }}
                 onSetAutoSave={(v) => { setAutoSave(v); savePref('redhawk_auto_save', v); }}
-                onSetShowStatusBar={(v) => { setShowStatusBar(v); savePref('redhawk_show_status', v); }}
-                onSetCompactMode={(v) => { setCompactMode(v); savePref('redhawk_compact', v); }}
+                onSetShowStatusBar={(v) => { setShowStatusBar(v); savePref('redhawk_show_status', v); onToggleStatusBar(v); }}
+                onSetCompactMode={(v) => { setCompactMode(v); savePref('redhawk_compact', v); onToggleCompact(v); }}
               />
             )}
             {page === 'tabs' && (
@@ -191,12 +223,11 @@ function ToggleRow({ label, desc, enabled, onToggle }: { label: string; desc: st
 }
 
 // ── General ──
-function GeneralSettings({ splitEnabled, liveOutput, autoSave, showStatusBar, compactMode,
-  onSetSplitEnabled, onSetLiveOutput, onSetAutoSave, onSetShowStatusBar, onSetCompactMode }: {
-  splitEnabled: boolean; liveOutput: boolean; autoSave: boolean;
+function GeneralSettings({ splitEnabled, autoSave, showStatusBar, compactMode,
+  onSetSplitEnabled, onSetAutoSave, onSetShowStatusBar, onSetCompactMode }: {
+  splitEnabled: boolean; autoSave: boolean;
   showStatusBar: boolean; compactMode: boolean;
   onSetSplitEnabled: (v: boolean) => void;
-  onSetLiveOutput: (v: boolean) => void;
   onSetAutoSave: (v: boolean) => void;
   onSetShowStatusBar: (v: boolean) => void;
   onSetCompactMode: (v: boolean) => void;
@@ -212,8 +243,6 @@ function GeneralSettings({ splitEnabled, liveOutput, autoSave, showStatusBar, co
         <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold px-1">Workspace</p>
         <ToggleRow label="Split Panes" desc="Allow opening tabs in side-by-side panes"
           enabled={splitEnabled} onToggle={(v) => onSetSplitEnabled(v)} />
-        <ToggleRow label="Live Output" desc="Stream real-time scan output to the terminal view"
-          enabled={liveOutput} onToggle={(v) => onSetLiveOutput(v)} />
         <ToggleRow label="Compact Mode" desc="Tighter spacing for more content per view"
           enabled={compactMode} onToggle={(v) => onSetCompactMode(v)} />
       </div>
@@ -301,7 +330,7 @@ function TabOrderSettings({ onTabOrderChange }: { onTabOrderChange: (order: TabI
               </div>
 
               <span className="text-xs text-gray-600 w-5 text-right font-mono">{idx + 1}</span>
-              <span className="text-base">{info.icon}</span>
+              <span className="flex items-center text-gray-400">{info.icon}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-200 font-medium">{info.label}</p>
                 <p className="text-[10px] text-gray-500 truncate">{info.desc}</p>
@@ -371,7 +400,7 @@ function AppearanceSettings() {
             <button key={theme.id} onClick={() => handleSelect(theme.id)}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all border ${
                 current === theme.id
-                  ? 'bg-redhawk-600/10 text-redhawk-400 border-redhawk-600/30'
+                  ? 'bg-redhawk-600/10 text-white border-redhawk-600/30'
                   : 'bg-midnight-900/60 text-gray-400 border-midnight-800/30 hover:border-midnight-700/50'
               }`}>
               <span className="text-xl">{theme.icon}</span>
@@ -464,7 +493,7 @@ function OperationsSettings() {
             <div key={op.id} onClick={() => handleSwitch(op.id)}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm border cursor-pointer transition-all ${
                 currentOp?.id === op.id
-                  ? 'bg-redhawk-600/10 border-redhawk-600/30 text-redhawk-400'
+                  ? 'bg-redhawk-600/10 border-redhawk-600/30 text-white'
                   : 'bg-midnight-900/60 border-midnight-800/30 text-gray-400 hover:border-midnight-700/50'
               }`}>
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${

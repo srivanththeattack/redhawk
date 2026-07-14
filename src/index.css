@@ -291,3 +291,51 @@
 [data-theme] *::-webkit-scrollbar-corner {
   background: var(--theme-scrollbar-track) !important;
 }
+
+/* ── Compact Mode ── */
+.compact header {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+.compact .card {
+  padding: 0.625rem !important;
+}
+.compact .card-header {
+  margin-bottom: 0.375rem !important;
+  font-size: 0.6875rem !important;
+}
+.compact .terminal {
+  padding: 0.5rem !important;
+}
+.compact nav a,
+.compact nav button {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+.compact .gap-3 {
+  gap: 0.5rem !important;
+}
+.compact .gap-4 {
+  gap: 0.625rem !important;
+}
+.compact .space-y-3 {
+  margin-top: 0 !important;
+}
+.compact .space-y-3 > * + * {
+  margin-top: 0.5rem !important;
+}
+.compact .space-y-4 > * + * {
+  margin-top: 0.5rem !important;
+}
+.compact .px-6 {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+.compact .py-3 {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+.compact .py-2 {
+  padding-top: 0.375rem !important;
+  padding-bottom: 0.375rem !important;
+}

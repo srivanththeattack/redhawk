@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import * as tls from 'tls';
 import * as http from 'http';
 import * as https from 'https';
+import * as dns from 'dns';
+import * as net from 'net';
 import { ToolRunner } from './services/tool-runner';
 import { NmapParser } from './services/nmap-parser';
 import { PythonRunner } from './services/python-runner';
@@ -13,6 +15,8 @@ import { OperationsManager } from './services/operations-manager';
 import { MsfRpcClient } from './services/msf-rpc-client';
 import { EvilginxManager } from './services/evilginx-manager';
 import { C2Server } from './services/c2-server';
+import { CollabHub } from './services/collab-hub';
+import { ProfileManager } from './services/profile-manager';
 import { ExfilManager } from './services/exfil-manager';
 import { PayloadFactory } from './services/payload-factory';
 import { EvasionManager } from './services/evasion-manager';
@@ -30,6 +34,8 @@ let operationsManager: OperationsManager;
 let msfClient: MsfRpcClient;
 let evilginxManager: EvilginxManager;
 let c2Server: C2Server;
+let collabHub: CollabHub;
+let profileManager: ProfileManager;
 let exfilManager: ExfilManager;
 let payloadFactory: PayloadFactory;
 let evasionManager: EvasionManager;
@@ -428,6 +434,89 @@ function registerIpcHandlers() {
     return { success: true };
   });
 
+  // ── Additional Recon ──
+
+  ipcMain.handle('run-geoip', async (_event, target: string) => {
+    try {
+      // Resolve domain to IP first if needed
+      const ip = await new Promise<string>((resolve, reject) => {
+        const lookup = target.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) ? 'done' : 'resolve';
+        if (lookup === 'done') resolve(target);
+        else dns.resolve4(target, (err, addresses) => {
+          if (err || !addresses?.length) reject(new Error('DNS resolution failed'));
+          else resolve(addresses[0]);
+        });
+      });
+      // Fetch geo data from ip-api.com (free, no key needed)
+      const geo = await new Promise<any>((resolve, reject) => {
+        https.get(`http://ip-api.com/json/${ip}`, { timeout: 8000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            try { resolve(JSON.parse(data)); }
+            catch { reject(new Error('Failed to parse geo response')); }
+          });
+        }).on('error', reject);
+      });
+      return { target, ip, ...geo };
+    } catch (err: any) {
+      return { target, error: err.message };
+    }
+  });
+
+  ipcMain.handle('run-reverse-dns', async (_event, target: string) => {
+    try {
+      const ip = target.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)
+        ? target
+        : await new Promise<string>((resolve, reject) => {
+            dns.resolve4(target, (err, addresses) => {
+              if (err || !addresses?.length) reject(new Error('DNS resolution failed'));
+              else resolve(addresses[0]);
+            });
+          });
+      const hostnames = await new Promise<string[]>((resolve, reject) => {
+        dns.reverse(ip, (err, hostnames) => {
+          if (err) resolve([]); // no PTR records is not an error
+          else resolve(hostnames);
+        });
+      });
+      return { target, ip, hostnames, count: hostnames.length };
+    } catch (err: any) {
+      return { target, error: err.message };
+    }
+  });
+
+  ipcMain.handle('run-port-health', async (_event, target: string, port: number) => {
+    try {
+      const result = await new Promise<any>((resolve) => {
+        const socket = new net.Socket();
+        const timer = setTimeout(() => {
+          socket.destroy();
+          resolve({ open: false, service: 'filtered', reason: 'timeout' });
+        }, 5000);
+        socket.setTimeout(5000);
+        socket.on('connect', () => {
+          clearTimeout(timer);
+          socket.destroy();
+          resolve({ open: true, service: 'open', reason: 'connected' });
+        });
+        socket.on('error', (err: any) => {
+          clearTimeout(timer);
+          resolve({ open: false, service: (err as any).code === 'ECONNREFUSED' ? 'closed' : 'filtered', reason: err.message });
+        });
+        socket.on('timeout', () => {
+          clearTimeout(timer);
+          socket.destroy();
+          resolve({ open: false, service: 'filtered', reason: 'timeout' });
+        });
+        socket.connect(port, target);
+      });
+      return { target, port, ...result };
+    } catch (err: any) {
+      return { target, port, error: err.message };
+    }
+  });
+
   // ── Metasploit RPC ──
   ipcMain.handle('msf-connect', async (_event, host: string, port: number, password: string) => {
     try {
@@ -493,12 +582,153 @@ function registerIpcHandlers() {
     return evilginxManager.deleteCampaign(campaignId);
   });
 
+  ipcMain.handle('phish-import-phishlet', async () => {
+    if (!mainWindow) return { success: false, message: 'No window' };
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Phishlet Files', extensions: ['yaml', 'yml', 'txt'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths[0]) return { success: false, message: 'Cancelled' };
+    try {
+      const filePath = result.filePaths[0];
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const name = path.basename(filePath).replace(/\.(yaml|yml|txt)$/, '');
+      const ok = evilginxManager.savePhishlet(name, content);
+      return { success: ok, message: ok ? `Imported phishlet: ${name}` : 'Failed to save phishlet' };
+    } catch (err: any) {
+      return { success: false, message: `Error: ${err.message}` };
+    }
+  });
+
+  // ── Team / Collaboration ──
+  ipcMain.handle('team-heartbeat', async (_event, memberId: string, name: string, target?: string, tab?: string) => {
+    if (!collabHub) return null;
+    return collabHub.heartbeat(memberId, name, target, tab);
+  });
+
+  ipcMain.handle('team-get-members', async () => {
+    if (!collabHub) return [];
+    return collabHub.getMembers();
+  });
+
+  ipcMain.handle('team-add-activity', async (_event, entry: any) => {
+    if (!collabHub) return null;
+    return collabHub.addActivity(entry);
+  });
+
+  ipcMain.handle('team-get-activity', async (_event, limit?: number) => {
+    if (!collabHub) return [];
+    return collabHub.getActivities(limit);
+  });
+
+  ipcMain.handle('team-add-finding', async (_event, finding: any) => {
+    if (!collabHub) return null;
+    return collabHub.addFinding(finding);
+  });
+
+  ipcMain.handle('team-update-finding', async (_event, id: string, updates: any) => {
+    if (!collabHub) return null;
+    return collabHub.updateFinding(id, updates);
+  });
+
+  ipcMain.handle('team-get-findings', async (_event, target?: string) => {
+    if (!collabHub) return [];
+    return collabHub.getFindings(target);
+  });
+
+  ipcMain.handle('team-delete-finding', async (_event, id: string) => {
+    if (!collabHub) return false;
+    return collabHub.deleteFinding(id);
+  });
+
+  ipcMain.handle('team-add-note', async (_event, note: any) => {
+    if (!collabHub) return null;
+    return collabHub.addNote(note);
+  });
+
+  ipcMain.handle('team-get-notes', async (_event, target?: string) => {
+    if (!collabHub) return [];
+    return collabHub.getNotes(target);
+  });
+
+  ipcMain.handle('team-delete-note', async (_event, id: string) => {
+    if (!collabHub) return false;
+    return collabHub.deleteNote(id);
+  });
+
+  ipcMain.handle('team-add-todo', async (_event, todo: any) => {
+    if (!collabHub) return null;
+    return collabHub.addTodo(todo);
+  });
+
+  ipcMain.handle('team-update-todo', async (_event, id: string, updates: any) => {
+    if (!collabHub) return null;
+    return collabHub.updateTodo(id, updates);
+  });
+
+  ipcMain.handle('team-get-todos', async () => {
+    if (!collabHub) return [];
+    return collabHub.getTodos();
+  });
+
+  ipcMain.handle('team-delete-todo', async (_event, id: string) => {
+    if (!collabHub) return false;
+    return collabHub.deleteTodo(id);
+  });
+
+  ipcMain.handle('team-get-targets', async () => {
+    if (!collabHub) return [];
+    return collabHub.getTargets();
+  });
+
+  ipcMain.handle('team-checkin-target', async (_event, target: string, memberId: string, memberName: string) => {
+    if (!collabHub) return { success: false, message: 'Collaboration hub not available' };
+    return collabHub.checkInTarget(target, memberId, memberName);
+  });
+
+  ipcMain.handle('team-checkout-target', async (_event, target: string, memberId: string, memberName: string) => {
+    if (!collabHub) return null;
+    return collabHub.checkOutTarget(target, memberId, memberName);
+  });
+
+  ipcMain.handle('team-update-target', async (_event, target: string, updates: any) => {
+    if (!collabHub) return null;
+    return collabHub.updateTarget(target, updates);
+  });
+
+  // ── C2 Profiles ──
+  ipcMain.handle('profile-list', async () => {
+    if (!profileManager) return [];
+    return profileManager.list();
+  });
+
+  ipcMain.handle('profile-get', async (_event, name: string) => {
+    if (!profileManager) return null;
+    return profileManager.get(name);
+  });
+
+  ipcMain.handle('profile-save', async (_event, profile: any) => {
+    if (!profileManager) return { success: false };
+    const ok = profileManager.save(profile);
+    return { success: ok };
+  });
+
+  ipcMain.handle('profile-delete', async (_event, name: string) => {
+    if (!profileManager) return { success: false };
+    const ok = profileManager.delete(name);
+    return { success: ok };
+  });
+
   // ── C2 Server ──
   ipcMain.handle('c2-start', async (_event, config: any) => {
     if (c2Server && c2Server.isRunning()) {
       return { running: true };
     }
     c2Server = new C2Server(config);
+    if (collabHub) c2Server.attachCollab(collabHub);
+    if (profileManager) c2Server.setProfileManager(profileManager);
     const ok = await c2Server.start();
 
     c2Server.on('started', (info) => {
@@ -550,9 +780,9 @@ function registerIpcHandlers() {
     return c2Server?.broadcastCommand(command) || [];
   });
 
-  ipcMain.handle('c2-generate-payload', async (_event, type: string) => {
+  ipcMain.handle('c2-generate-payload', async (_event, type: string, sleepSeconds?: number, jitterPercent?: number, killDate?: string) => {
     if (!c2Server) return '';
-    return c2Server.generateAgentPayload(type as 'python' | 'powershell');
+    return c2Server.generateAgentPayload(type, sleepSeconds, jitterPercent, killDate);
   });
 
   // ── Exfiltration ──
@@ -802,6 +1032,19 @@ function registerIpcHandlers() {
     return payloadFactory.save(payload, filename);
   });
 
+  ipcMain.handle('payload-import', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Payload Files', extensions: ['ps1', 'py', 'cs', 'txt', 'psm1', 'vbs', 'js'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return { filePath: result.filePaths[0], content: fs.readFileSync(result.filePaths[0], 'utf-8') };
+  });
+
   // ── Evasion ──
   ipcMain.handle('evasion-get-bypasses', async () => {
     return evasionManager.getAmsiBypasses();
@@ -911,6 +1154,16 @@ function registerIpcHandlers() {
     return privescManager.checkAlwaysInstallElevated();
   });
 
+  // ── File dialogs ──
+  ipcMain.handle('dialog-open-file', async (_event, options: any) => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: options?.filters || [{ name: 'All Files', extensions: ['*'] }],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+
   // ── Live output ──
   toolRunner.onOutput((data: string) => {
     mainWindow?.webContents.send('scan-output', data);
@@ -937,7 +1190,11 @@ app.whenReady().then(() => {
     operationsManager = new OperationsManager(userDataPath);
     msfClient = new MsfRpcClient();
     evilginxManager = new EvilginxManager(userDataPath);
+    profileManager = new ProfileManager(userDataPath);
     c2Server = new C2Server();
+    c2Server.setProfileManager(profileManager);
+    collabHub = new CollabHub(userDataPath);
+    c2Server.attachCollab(collabHub);
     exfilManager = new ExfilManager(userDataPath);
     payloadFactory = new PayloadFactory(userDataPath);
     evasionManager = new EvasionManager();

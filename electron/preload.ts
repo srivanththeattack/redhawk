@@ -34,6 +34,9 @@ const api = {
   runDirBrute: (domain: string, wordlist?: string[]) => ipcRenderer.invoke('run-dir-brute', domain, wordlist),
   runServiceScan: (ip: string) => ipcRenderer.invoke('run-service-scan', ip),
   runVulnScan: (ip: string) => ipcRenderer.invoke('run-vuln-scan', ip),
+  runGeoIp: (target: string) => ipcRenderer.invoke('run-geoip', target),
+  runReverseDns: (target: string) => ipcRenderer.invoke('run-reverse-dns', target),
+  runPortHealth: (target: string, port: number) => ipcRenderer.invoke('run-port-health', target, port),
 
   // Metasploit
   msfConnect: (host: string, port: number, password: string) =>
@@ -55,6 +58,37 @@ const api = {
   phishStopCampaign: (campaignId: string) => ipcRenderer.invoke('phish-stop-campaign', campaignId),
   phishGetCredentials: (campaignId: string) => ipcRenderer.invoke('phish-get-credentials', campaignId),
   phishDeleteCampaign: (campaignId: string) => ipcRenderer.invoke('phish-delete-campaign', campaignId),
+  phishImportPhishlet: () => ipcRenderer.invoke('phish-import-phishlet'),
+
+  // Team / Collaboration
+  teamHeartbeat: (memberId: string, name: string, target?: string, tab?: string) =>
+    ipcRenderer.invoke('team-heartbeat', memberId, name, target, tab),
+  teamGetMembers: () => ipcRenderer.invoke('team-get-members'),
+  teamAddActivity: (entry: any) => ipcRenderer.invoke('team-add-activity', entry),
+  teamGetActivity: (limit?: number) => ipcRenderer.invoke('team-get-activity', limit),
+  teamAddFinding: (finding: any) => ipcRenderer.invoke('team-add-finding', finding),
+  teamUpdateFinding: (id: string, updates: any) => ipcRenderer.invoke('team-update-finding', id, updates),
+  teamGetFindings: (target?: string) => ipcRenderer.invoke('team-get-findings', target),
+  teamDeleteFinding: (id: string) => ipcRenderer.invoke('team-delete-finding', id),
+  teamAddNote: (note: any) => ipcRenderer.invoke('team-add-note', note),
+  teamGetNotes: (target?: string) => ipcRenderer.invoke('team-get-notes', target),
+  teamDeleteNote: (id: string) => ipcRenderer.invoke('team-delete-note', id),
+  teamAddTodo: (todo: any) => ipcRenderer.invoke('team-add-todo', todo),
+  teamUpdateTodo: (id: string, updates: any) => ipcRenderer.invoke('team-update-todo', id, updates),
+  teamGetTodos: () => ipcRenderer.invoke('team-get-todos'),
+  teamDeleteTodo: (id: string) => ipcRenderer.invoke('team-delete-todo', id),
+  teamGetTargets: () => ipcRenderer.invoke('team-get-targets'),
+  teamCheckinTarget: (target: string, memberId: string, memberName: string) =>
+    ipcRenderer.invoke('team-checkin-target', target, memberId, memberName),
+  teamCheckoutTarget: (target: string, memberId: string, memberName: string) =>
+    ipcRenderer.invoke('team-checkout-target', target, memberId, memberName),
+  teamUpdateTarget: (target: string, updates: any) => ipcRenderer.invoke('team-update-target', target, updates),
+
+  // C2 Profiles
+  profileList: () => ipcRenderer.invoke('profile-list'),
+  profileGet: (name: string) => ipcRenderer.invoke('profile-get', name),
+  profileSave: (profile: any) => ipcRenderer.invoke('profile-save', profile),
+  profileDelete: (name: string) => ipcRenderer.invoke('profile-delete', name),
 
   // C2 Server
   c2Start: (config: any) => ipcRenderer.invoke('c2-start', config),
@@ -64,7 +98,8 @@ const api = {
   c2Tasks: (agentId: string) => ipcRenderer.invoke('c2-tasks', agentId),
   c2SendCommand: (agentId: string, command: string) => ipcRenderer.invoke('c2-send-command', agentId, command),
   c2Broadcast: (command: string) => ipcRenderer.invoke('c2-broadcast', command),
-  c2GeneratePayload: (type: string) => ipcRenderer.invoke('c2-generate-payload', type),
+  c2GeneratePayload: (type: string, sleepSeconds?: number, jitterPercent?: number, killDate?: string) =>
+    ipcRenderer.invoke('c2-generate-payload', type, sleepSeconds, jitterPercent, killDate),
 
   // Exfiltration
   exfilJobs: () => ipcRenderer.invoke('exfil-jobs'),
@@ -107,6 +142,7 @@ const api = {
     ipcRenderer.invoke('payload-obfuscate', payload, method),
   payloadSave: (payload: string, filename: string) =>
     ipcRenderer.invoke('payload-save', payload, filename),
+  payloadImport: () => ipcRenderer.invoke('payload-import'),
 
   // Evasion
   evasionGetBypasses: () => ipcRenderer.invoke('evasion-get-bypasses'),
@@ -139,6 +175,9 @@ const api = {
   privescEnumServices: () => ipcRenderer.invoke('privesc-enum-services'),
   privescUnquotedPaths: () => ipcRenderer.invoke('privesc-unquoted-paths'),
   privescAlwaysInstallElevated: () => ipcRenderer.invoke('privesc-always-install-elevated'),
+
+  // File dialogs
+  dialogOpenFile: (options?: any) => ipcRenderer.invoke('dialog-open-file', options),
 
   // Event listeners
   onScanOutput: (callback: (data: string) => void) => {

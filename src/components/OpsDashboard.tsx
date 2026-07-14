@@ -150,7 +150,7 @@ export function OpsDashboard({ scan }: Props) {
         ].map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-2 rounded-md text-[10px] font-medium transition-all whitespace-nowrap ${
-              tab === t.id ? 'bg-redhawk-600/20 text-redhawk-400 border border-redhawk-600/30' : 'text-gray-500 hover:text-gray-300'
+              tab === t.id ? 'bg-redhawk-600/20 text-white border border-redhawk-600/30' : 'text-gray-500 hover:text-gray-300'
             }`}>{t.icon} {t.label}</button>
         ))}
       </div>
@@ -202,8 +202,8 @@ export function OpsDashboard({ scan }: Props) {
               <div>
                 <label className="text-[10px] text-gray-500 block mb-1">Severity</label>
                 <select value={findSeverity} onChange={(e) => setFindSeverity(e.target.value)}
-                  className="input-field h-9 text-sm">
-                  {SEVERITIES.map((s) => <option key={s} value={s} className="bg-midnight-900">{s}</option>)}
+                  className="input-field py-1.5 text-sm">
+                  {SEVERITIES.map((s) => <option key={s} value={s} className="bg-midnight-900 text-gray-100">{s}</option>)}
                 </select>
               </div>
             </div>

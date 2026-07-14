@@ -118,7 +118,7 @@ export function EvadePanel() {
         ].map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
-              tab === t.id ? 'bg-redhawk-600/20 text-redhawk-400 border border-redhawk-600/30' : 'text-gray-500 hover:text-gray-300'
+              tab === t.id ? 'bg-redhawk-600/20 text-white border border-redhawk-600/30' : 'text-gray-500 hover:text-gray-300'
             }`}>{t.icon} {t.label}</button>
         ))}
       </div>
@@ -129,10 +129,10 @@ export function EvadePanel() {
           <div className="card">
             <div className="card-header">AMSI Bypass</div>
             <select value={selectedBypass} onChange={(e) => setSelectedBypass(e.target.value)}
-              className="input-field h-9 text-sm mb-2">
-              <option value="" className="bg-midnight-900">Select a bypass technique...</option>
+              className="input-field py-1.5 text-sm mb-2">
+              <option value="" className="bg-midnight-900 text-gray-100">Select a bypass technique...</option>
               {bypasses.map((b) => (
-                <option key={b.name} value={b.name} className="bg-midnight-900">{b.name} — {b.description}</option>
+                <option key={b.name} value={b.name} className="bg-midnight-900 text-gray-100">{b.name} — {b.description}</option>
               ))}
             </select>
             {selectedBypass && bypasses.find(b => b.name === selectedBypass) && (
@@ -181,10 +181,10 @@ Marshal.Copy(patch, 0, etw, patch.Length);`}</pre>
             <div className="col-span-2">
               <label className="text-[10px] text-gray-500 block mb-1">Technique</label>
               <select value={injectTechnique} onChange={(e) => setInjectTechnique(e.target.value)}
-                className="input-field h-9 text-sm">
-                <option value="" className="bg-midnight-900">Select technique...</option>
+                className="input-field py-1.5 text-sm">
+                <option value="" className="bg-midnight-900 text-gray-100">Select technique...</option>
                 {techniques.map((t) => (
-                  <option key={t.id} value={t.id} className="bg-midnight-900">{t.name} — {t.description}</option>
+                  <option key={t.id} value={t.id} className="bg-midnight-900 text-gray-100">{t.name} — {t.description}</option>
                 ))}
               </select>
             </div>
