@@ -130,6 +130,15 @@ npm run typecheck    # TypeScript type checking
 
 React 18 · TypeScript · Tailwind CSS · Zustand · Electron 31 · Vite · Python 3.12 · Nmap
 
+> [!NOTE]
+> ## Development Status
+>
+> **RedHawk is currently in active beta.**
+>
+> This project was developed iteratively with significant AI assistance throughout the design, implementation, testing, and documentation process. AI was used as a development aid to accelerate prototyping and refinement, while all architecture, feature selection, integration decisions, and final code review were directed by the project's author.
+>
+> As RedHawk is still in beta, you may encounter bugs, incomplete features, performance issues, or breaking changes between releases. Feedback, bug reports, and feature suggestions are greatly appreciated and help improve the project.
+
 ---
 
 ## License
