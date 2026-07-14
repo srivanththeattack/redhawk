@@ -72,20 +72,20 @@ RedHawk handles most of these automatically, but here's what's needed under the 
 
 ## What's inside
 
-| Tab | Icon | What it does |
-|---|---|---|---|
-| Tab | What it does |
-|---|---|---|
-| **Recon** | WHOIS, DNS enumeration, subdomain brute-force, email OSINT, Nmap (port/service/vuln/SSL/WAF/tech/dirbust), HTTP headers, GeoIP, reverse DNS, port health |
-| **Exploit** | Metasploit RPC — search exploits, generate payloads, manage sessions |
-| **Phish** | Evilginx2 campaign management — 20+ phishlet templates, credential capture, custom phishlet import |
-| **Payload** | Payload factory — PowerShell, C#, Python reverse shells + shellcode, obfuscate (base64/XOR/split/reverse), import payloads from disk |
-| **Evade** | AV/EDR evasion — 5 AMSI bypass techniques, ETW patching, 4 process injection methods, Defender file checker |
-| **Privesc** | Privilege escalation — system info, token/privilege/registry checks, unquoted paths, PowerUp scan, exploit suggester |
-| **C2** | Built-in HTTP/HTTPS C2 server with malleable communication profiles, 10 agent types, beacon config (sleep/jitter/kill date), task console |
-| **Exfil** | File collection, screenshot capture, browser data extraction, AES-256 packaging, multiple collection types |
-| **Ops** | Operations dashboard — per-target notes, structured findings with severity, todo list, screenshot gallery, activity timeline |
-| **Team** | Real-time collaboration hub — live activity feed, shared findings, per-target notes, target check-in/check-out coordination |
+# Modules
+
+| Module | Highlights |
+|---------|------------|
+| 🛰 **Recon** | WHOIS, DNS, Subdomains, Email OSINT, HTTP Headers, GeoIP, Reverse DNS, Nmap integration, Port & Service Discovery |
+| 💥 **Exploit** | Metasploit RPC integration, exploit search, payload generation, session management |
+| 🎣 **Phish** | Evilginx2 integration, campaign management, phishlet support, credential capture |
+| 💀 **Payload** | Reverse shell generation, shellcode generation, payload import, multiple obfuscation methods |
+| 🥷 **Evade** | AMSI bypass techniques, ETW patching, Defender checks, process injection utilities |
+| 🔓 **Privesc** | System enumeration, privilege checks, registry analysis, PowerUp integration, exploit suggestions |
+| 📡 **C2** | HTTP/HTTPS command server, beacon configuration, malleable profiles, task console, multiple agent types |
+| 📦 **Exfil** | File collection, browser data collection, screenshot capture, encrypted packaging |
+| 📋 **Ops** | Findings management, notes, screenshots, timelines, operation tracking |
+| 👥 **Team** | Shared notes, collaboration, live activity feed, target coordination |
 
 ### Extra features
 
