@@ -22,6 +22,7 @@ import { PayloadFactory } from './services/payload-factory';
 import { EvasionManager } from './services/evasion-manager';
 import { OpsDashboardManager } from './services/ops-manager';
 import { PrivescManager } from './services/privesc-manager';
+import { TerminalManager } from './services/terminal-manager';
 import { paths, isDev } from './services/paths';
 
 let mainWindow: BrowserWindow | null = null;
@@ -46,6 +47,12 @@ let _payloadFactory: PayloadFactory | null = null;
 let _evasionManager: EvasionManager | null = null;
 let _opsManager: OpsDashboardManager | null = null;
 let _privescManager: PrivescManager | null = null;
+let _terminalManager: TerminalManager | null = null;
+
+function getTerminalManager(): TerminalManager {
+  if (!_terminalManager) _terminalManager = new TerminalManager();
+  return _terminalManager;
+}
 
 function getMsfClient(): MsfRpcClient {
   if (!_msfClient) _msfClient = new MsfRpcClient();
@@ -1204,6 +1211,24 @@ function registerIpcHandlers() {
   // ── Live output ──
   toolRunner.onOutput((data: string) => {
     mainWindow?.webContents.send('scan-output', data);
+  });
+
+  // ── Integrated Terminal ──
+  ipcMain.handle('terminal-create', async (_event, cols: number, rows: number) => {
+    if (!mainWindow) return false;
+    return getTerminalManager().create(mainWindow, cols, rows);
+  });
+
+  ipcMain.handle('terminal-write', async (_event, data: string) => {
+    getTerminalManager().write(data);
+  });
+
+  ipcMain.handle('terminal-resize', async (_event, cols: number, rows: number) => {
+    getTerminalManager().resize(cols, rows);
+  });
+
+  ipcMain.handle('terminal-kill', async () => {
+    getTerminalManager().kill();
   });
 }
 

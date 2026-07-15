@@ -12,6 +12,7 @@ import { OperationsBar } from './components/OperationsBar';
 import { ThemePicker } from './components/ThemePicker';
 import { HistorySidebar } from './components/HistorySidebar';
 import { TeamPanel } from './components/TeamPanel';
+import { TerminalPanel } from './components/TerminalPanel';
 
 interface TabDef {
   id: TabId;
@@ -121,9 +122,10 @@ const TABS: TabDef[] = [
   { id: 'team', label: 'Team', icon: <TabIcon tabId="team" />, description: 'Team coordination — shared feed, findings, targets' },
 ];
 
-function StatusBar({ phase, target, scanTasks, depsStatus, onInstallDeps }: {
+function StatusBar({ phase, target, scanTasks, depsStatus, onInstallDeps, terminalOpen, onTerminalToggle }: {
   phase: string; target: string; scanTasks: ScanTaskState;
   depsStatus: any; onInstallDeps?: () => void;
+  terminalOpen?: boolean; onTerminalToggle?: () => void;
 }) {
   const [opName, setOpName] = React.useState<string | null>(null);
   const [opTargets, setOpTargets] = React.useState<number>(0);
@@ -172,8 +174,25 @@ function StatusBar({ phase, target, scanTasks, depsStatus, onInstallDeps }: {
 
   return (
     <footer className="flex items-center justify-between px-4 py-1.5 bg-midnight-900/80 backdrop-blur-md border-t border-midnight-800/30 flex-shrink-0 text-[11px]">
-      {/* Left: Phase + Operation context */}
+      {/* Left: Terminal toggle + Phase + Operation context */}
       <div className="flex items-center gap-3 min-w-0">
+        {/* Terminal toggle button — like VS Code's terminal panel toggle */}
+        <button
+          onClick={onTerminalToggle}
+          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+            terminalOpen
+              ? 'bg-redhawk-600/15 text-redhawk-400 border border-redhawk-600/20'
+              : 'text-gray-600 hover:text-gray-400 hover:bg-midnight-800/50'
+          }`}
+          title={terminalOpen ? 'Close terminal' : 'Open terminal (WSL)'}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M4 17l6-6-6-6" />
+            <path d="M12 19h8" />
+          </svg>
+          <span className="hidden sm:inline">Terminal</span>
+        </button>
+
         <span className={`flex-shrink-0 w-2 h-2 rounded-full transition-all duration-500 ${
           phase === 'idle' ? 'bg-gray-600' :
           phase === 'scanning' || scanActive ? 'bg-redhawk-500 animate-pulse' :
@@ -280,6 +299,19 @@ export default function App() {
     try { return localStorage.getItem('redhawk_show_status') !== 'false'; }
     catch { return true; }
   });
+  const [terminalOpen, setTerminalOpen] = useState(() => {
+    try { return localStorage.getItem('redhawk_terminal_open') === 'true'; }
+    catch { return false; }
+  });
+
+  const handleTerminalToggle = useCallback(() => {
+    setTerminalOpen(prev => {
+      const next = !prev;
+      try { localStorage.setItem('redhawk_terminal_open', String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
   const [showTour, setShowTour] = useState(() => {
     try { return localStorage.getItem('redhawk_tour_completed') !== 'true'; }
     catch { return true; }
@@ -556,6 +588,9 @@ export default function App() {
         />
       )}
 
+      {/* ── INTEGRATED TERMINAL ── */}
+      <TerminalPanel open={terminalOpen} onToggle={handleTerminalToggle} />
+
       {/* ── STATUS BAR ── */}
       {showStatusBar && (
         <div data-tour="statusbar"><StatusBar
@@ -564,6 +599,8 @@ export default function App() {
           scanTasks={scan.scanTasks}
           depsStatus={scan.depsStatus}
           onInstallDeps={scan.depsStatus && !scan.depsStatus.all ? scan.installDeps : undefined}
+          terminalOpen={terminalOpen}
+          onTerminalToggle={handleTerminalToggle}
         /></div>
       )}
     </div>

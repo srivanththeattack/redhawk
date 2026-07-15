@@ -178,7 +178,23 @@ const api = {
   // File dialogs
   dialogOpenFile: (options?: any) => ipcRenderer.invoke('dialog-open-file', options),
 
+  // Integrated Terminal
+  terminalCreate: (cols: number, rows: number) => ipcRenderer.invoke('terminal-create', cols, rows),
+  terminalWrite: (data: string) => ipcRenderer.invoke('terminal-write', data),
+  terminalResize: (cols: number, rows: number) => ipcRenderer.invoke('terminal-resize', cols, rows),
+  terminalKill: () => ipcRenderer.invoke('terminal-kill'),
+
   // Event listeners
+  onTerminalData: (callback: (data: string) => void) => {
+    const handler = (_event: any, data: string) => callback(data);
+    ipcRenderer.on('terminal-data', handler);
+    return () => ipcRenderer.removeListener('terminal-data', handler);
+  },
+  onTerminalExit: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('terminal-exit', handler);
+    return () => ipcRenderer.removeListener('terminal-exit', handler);
+  },
   onScanOutput: (callback: (data: string) => void) => {
     const handler = (_event: any, data: string) => callback(data);
     ipcRenderer.on('scan-output', handler);

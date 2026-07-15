@@ -175,7 +175,15 @@ export interface RedHawkApi {
   privescUnquotedPaths: () => Promise<{ path: string; name: string }[]>;
   privescAlwaysInstallElevated: () => Promise<boolean>;
 
+  // Integrated Terminal
+  terminalCreate: (cols: number, rows: number) => Promise<boolean>;
+  terminalWrite: (data: string) => Promise<void>;
+  terminalResize: (cols: number, rows: number) => Promise<void>;
+  terminalKill: () => Promise<void>;
+
   // Event listeners (returns cleanup function)
+  onTerminalData: (callback: (data: string) => void) => () => void;
+  onTerminalExit: (callback: () => void) => () => void;
   onScanOutput: (callback: (data: string) => void) => () => void;
   onScanStatus: (callback: (data: { target: string; message: string }) => void) => () => void;
   onScanComplete: (callback: (data: any) => void) => () => void;
