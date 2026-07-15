@@ -40,6 +40,7 @@
 @layer components {
   .card {
     @apply bg-midnight-900 border border-midnight-700 rounded-lg p-4 shadow-lg;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .card-header {
@@ -338,4 +339,72 @@
 .compact .py-2 {
   padding-top: 0.375rem !important;
   padding-bottom: 0.375rem !important;
+}
+
+/* ── Animation Utilities ── */
+.tab-content-enter {
+  animation: fadeIn 0.25s ease-out, slideUp 0.25s ease-out;
+}
+
+.dropdown-enter {
+  animation: slideDown 0.2s ease-out;
+}
+
+.btn-hover-lift {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 68, 85, 0.15);
+}
+.btn-hover-lift:active {
+  transform: translateY(0);
+}
+
+.card-hover-glow {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover-glow:hover {
+  border-color: rgba(255, 68, 85, 0.3);
+  box-shadow: 0 0 16px rgba(255, 68, 85, 0.08);
+}
+
+.section-fade-enter {
+  animation: fadeIn 0.3s ease-out, slideUp 0.3s ease-out;
+}
+
+.section-fade-enter:nth-child(2) { animation-delay: 0.05s; }
+.section-fade-enter:nth-child(3) { animation-delay: 0.1s; }
+.section-fade-enter:nth-child(4) { animation-delay: 0.15s; }
+.section-fade-enter:nth-child(5) { animation-delay: 0.2s; }
+.section-fade-enter:nth-child(6) { animation-delay: 0.25s; }
+.section-fade-enter:nth-child(7) { animation-delay: 0.3s; }
+.section-fade-enter:nth-child(8) { animation-delay: 0.35s; }
+
+/* ── Guided Tour Overlay ── */
+.tour-spotlight {
+  position: relative;
+  z-index: 60;
+  outline: 2px solid rgba(255, 68, 85, 0.6);
+  outline-offset: 3px;
+  border-radius: 8px;
+  animation: tourPulse 2s ease-in-out infinite;
+}
+
+.tour-tooltip {
+  animation: bounceIn 0.35s ease-out;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6));
+}
+
+.tour-backdrop {
+  pointer-events: none;
+}
+
+.tour-backdrop.active {
+  pointer-events: auto;
+}
+
+/* ── Tab transition ── */
+.tab-switch-enter {
+  animation: fadeIn 0.2s ease-out, slideInRight 0.2s ease-out;
 }

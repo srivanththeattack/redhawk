@@ -11,7 +11,7 @@ export class PythonRunner {
     this.scriptsDir = paths.pythonScripts;
 
     // Always use the system Python from PATH. The embedded python._embed at
-    // paths.pythonExe is a minimal runtime without pip packages (maigret, etc.)
+    // paths.pythonExe is a minimal runtime without pip packages
     // installed, so it would fail for any script that imports them.
     this.pythonPath = 'python';
   }
@@ -35,7 +35,7 @@ export class PythonRunner {
         shell: false,
         env,
         // Note: no timeout here — the Python wrapper handles its own timeout internally.
-        // Node.js spawn timeout would kill the process prematurely for long-running tools like maigret.
+        // Node.js spawn timeout would kill the process prematurely for long-running tools.
       });
 
       let stdout = '';

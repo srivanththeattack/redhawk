@@ -19,7 +19,7 @@ Section -"DependencyCheck" SEC_DEPS
        🔍  Nmap — port scanning$\r$\n\
        🐍  Python 3 + pip — script runtime$\r$\n\
        📦  Node.js — dependency for some tools$\r$\n\
-       🕵️  Maigret — username OSINT search$\r$\n\
+
        🎣  Evilginx2 — phishing framework$\r$\n\
        💥  Metasploit — exploitation framework$\r$\n\
        🐧  WSL — Linux subsystem$\r$\n$\r$\n\

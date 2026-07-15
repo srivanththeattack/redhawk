@@ -20,7 +20,6 @@ export interface RedHawkApi {
     python: { installed: boolean; version?: string; path?: string; detail?: string };
     pip: { installed: boolean; version?: string; path?: string; detail?: string };
     nodejs: { installed: boolean; version?: string; path?: string; detail?: string };
-    maigret: { installed: boolean; version?: string; path?: string; detail?: string };
     metasploit: { installed: boolean; version?: string; path?: string; detail?: string };
     msfRunning: { installed: boolean; version?: string; path?: string; detail?: string };
     evilginx: { installed: boolean; version?: string; path?: string; detail?: string };
@@ -51,8 +50,6 @@ export interface RedHawkApi {
   runGeoIp: (target: string) => Promise<any>;
   runReverseDns: (target: string) => Promise<any>;
   runPortHealth: (target: string, port: number) => Promise<any>;
-  runMaigret: (username: string) => Promise<any>;
-
   // Google Dorking
   runGoogleDork: (query: string) => Promise<any>;
 

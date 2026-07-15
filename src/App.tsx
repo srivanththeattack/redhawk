@@ -4,6 +4,7 @@ import { useSplitPanes } from './hooks/useSplitPanes';
 import type { TabId } from './hooks/useSplitPanes';
 import type { ScanTaskState } from './store/scan-store';
 import { Disclaimer } from './components/Disclaimer';
+import { GuidedTour } from './components/GuidedTour';
 import { SplitPaneContainer } from './components/SplitPaneContainer';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -147,10 +148,10 @@ function StatusBar({ phase, target, scanTasks, depsStatus, onInstallDeps }: {
     return () => { cancelled = true; };
   }, []);
 
-  // Fetch C2 status (poll every 5s)
+  // Fetch C2 status once on mount (live updates come from C2Panel when its tab is open)
   React.useEffect(() => {
     let cancelled = false;
-    const poll = async () => {
+    (async () => {
       try {
         const status = await window.api.c2Status();
         if (!cancelled) {
@@ -158,10 +159,8 @@ function StatusBar({ phase, target, scanTasks, depsStatus, onInstallDeps }: {
           setC2Agents(status.agents || 0);
         }
       } catch { if (!cancelled) { setC2Running(false); setC2Agents(0); } }
-    };
-    poll();
-    const iv = setInterval(poll, 5000);
-    return () => { cancelled = true; clearInterval(iv); };
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Scan progress: count running / non-idle tasks
@@ -281,6 +280,29 @@ export default function App() {
     try { return localStorage.getItem('redhawk_show_status') !== 'false'; }
     catch { return true; }
   });
+  const [showTour, setShowTour] = useState(() => {
+    try { return localStorage.getItem('redhawk_tour_completed') !== 'true'; }
+    catch { return true; }
+  });
+
+  const handleTourComplete = useCallback(() => {
+    setShowTour(false);
+    try { localStorage.setItem('redhawk_tour_completed', 'true'); } catch {}
+  }, []);
+
+  const handleTourSkip = useCallback(() => {
+    setShowTour(false);
+    try { localStorage.setItem('redhawk_tour_completed', 'true'); } catch {}
+  }, []);
+
+  const handleActivateTab = useCallback((tabId: TabId) => {
+    const existing = split.panes.find((p) => p.tabId === tabId);
+    if (existing) {
+      split.setActivePaneId(existing.id);
+    } else {
+      split.setPaneTab(split.activePaneId, tabId);
+    }
+  }, [split]);
 
   // When split is disabled, collapse to single pane
   const handleSplitToggle = useCallback((enabled: boolean) => {
@@ -346,12 +368,30 @@ export default function App() {
     return <Disclaimer onAccept={scan.acceptDisclaimer} />;
   }
 
+  if (showTour) {
+    return (
+      <>
+        <GuidedTour
+          onComplete={handleTourComplete}
+          onSkip={handleTourSkip}
+          onActivateTab={handleActivateTab}
+          activeTab={split.activeTab}
+          isFirstLaunch={true}
+        />
+        {renderApp()}
+      </>
+    );
+  }
+
+  return renderApp();
+
+  function renderApp() {
   return (
-    <div className={`h-screen flex flex-col bg-gradient-to-b from-midnight-950 via-midnight-950 to-midnight-900${compactMode ? ' compact' : ''}`}>
+    <div className={`h-screen flex flex-col animate-fade-in bg-gradient-to-b from-midnight-950 via-midnight-950 to-midnight-900${compactMode ? ' compact' : ''}`}>
       {/* ── HEADER ── */}
       <header className="flex items-center justify-between px-6 py-3 bg-midnight-900/80 backdrop-blur-md border-b border-midnight-800/50 flex-shrink-0 relative z-40">
         <div className="flex items-center gap-4">
-          <div className="relative">
+          <div data-tour="logo" className="relative">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-redhawk-600 to-redhawk-800 flex items-center justify-center shadow-lg shadow-redhawk-600/20">
               <span className="text-white font-bold text-sm tracking-tight">RH</span>
             </div>
@@ -375,8 +415,9 @@ export default function App() {
               if (!tab) return null;
               const isActive = split.panes.some((p) => p.tabId === tab.id);
               return (
-                <div key={tab.id} className="flex items-center gap-0 group">
+                  <div key={tab.id} className="flex items-center gap-0 group">
                   <button
+                    data-tour={`tab-${tab.id}`}
                     onClick={() => {
                       const existing = split.panes.find((p) => p.tabId === tab.id);
                       if (existing) {
@@ -419,7 +460,7 @@ export default function App() {
 
         <div className="flex items-center gap-1">
           {!scan.depsStatus?.all && !scan.depsChecking && (
-            <button onClick={scan.installDeps} className="btn-secondary text-xs py-1.5 px-3">
+            <button data-tour="deps" onClick={scan.installDeps} className="btn-secondary text-xs py-1.5 px-3">
               Install Deps
             </button>
           )}
@@ -446,7 +487,7 @@ export default function App() {
             </button>
           )}
           <ThemePicker />
-          <HamburgerMenu onToggleHistory={() => setSidebarOpen(p => !p)} onOpenSettings={() => setSettingsOpen(true)} sidebarOpen={sidebarOpen} />
+          <span data-tour="hamburger"><HamburgerMenu onToggleHistory={() => setSidebarOpen(p => !p)} onOpenSettings={() => setSettingsOpen(true)} sidebarOpen={sidebarOpen} /></span>
         </div>
       </header>
 
@@ -517,14 +558,15 @@ export default function App() {
 
       {/* ── STATUS BAR ── */}
       {showStatusBar && (
-        <StatusBar
+        <div data-tour="statusbar"><StatusBar
           phase={scan.phase}
           target={scan.target}
           scanTasks={scan.scanTasks}
           depsStatus={scan.depsStatus}
           onInstallDeps={scan.depsStatus && !scan.depsStatus.all ? scan.installDeps : undefined}
-        />
+        /></div>
       )}
     </div>
   );
+  }
 }

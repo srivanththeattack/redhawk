@@ -6,7 +6,6 @@
     - Nmap (port scanning)
     - Python 3 + pip
     - Node.js (runtime)
-    - Maigret (username OSINT)
     - Evilginx2 (phishing framework)
     - Metasploit (exploitation framework)
     - WSL (Windows Subsystem for Linux)
@@ -154,7 +153,7 @@ if (-not $pythonFound) {
 }
 
 # ──────────────────────────────────────────────
-# 3. pip packages (including maigret)
+# 3. pip packages
 # ──────────────────────────────────────────────
 Log ""
 Log "[3/7] Installing Python packages..." Yellow
@@ -163,16 +162,8 @@ if (Test-Path $requirementsFile -and $pythonFound) {
     try {
         Log "  [*] Installing packages from requirements.txt..." Yellow
         & $pythonExe -m pip install -r $requirementsFile --quiet 2>&1 | Out-Null
-        Log "  [✓] Python packages installed (includes maigret)." Green
+        Log "  [✓] Python packages installed." Green
         $Results["packages"] = @{ status = "installed" }
-
-        # Verify maigret specifically
-        try {
-            $mg = & $pythonExe -m pip show maigret 2>&1
-            if ($mg -match "Version:") {
-                Log "  [✓] Maigret verified: $($mg -match 'Version:\s*(.+)' | Out-Null; $Matches[1])" Green
-            }
-        } catch {}
     } catch {
         Log "  [✗] Package install failed: $_" Red
         $Results["packages"] = @{ status = "failed"; error = $_ }

@@ -55,7 +55,6 @@ RedHawk handles most of these automatically, but here's what's needed under the 
 | **Nmap** | Auto-installed via NSIS installer or "Install Deps" button |
 | **Python 3.12** | Embedded — downloaded on first launch |
 | **Node.js** | Auto-installed via NSIS installer or "Install Deps" |
-| **Maigret** (Recon tab) | Auto-installed via `pip install maigret` |
 | **Metasploit** (Exploit tab) | Needs `msfrpcd` running in WSL: `msfrpc -P redhawk -S -f -j` |
 | **Evilginx2** (Phish tab) | Install in WSL or via NSIS installer |
 | **WSL** | Auto-installed by NSIS installer if missing |
@@ -79,7 +78,7 @@ RedHawk handles most of these automatically, but here's what's needed under the 
 
 | Module | Highlights |
 |---------|------------|
-| 🛰 **Recon** | WHOIS, DNS, Subdomains, Email OSINT, HTTP Headers, GeoIP, Reverse DNS, Nmap integration, Port & Service Discovery, **Maigret** username OSINT |
+| 🛰 **Recon** | WHOIS, DNS, Subdomains, Email OSINT, HTTP Headers, GeoIP, Reverse DNS, Nmap integration, Port & Service Discovery |
 | 💥 **Exploit** | Metasploit RPC integration, exploit search, payload generation, session management |
 | 🎣 **Phish** | Evilginx2 integration, campaign management, phishlet support, credential capture |
 | 💀 **Payload** | Reverse shell generation, shellcode generation, payload import, multiple obfuscation methods |

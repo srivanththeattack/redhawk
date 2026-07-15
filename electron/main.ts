@@ -25,22 +25,81 @@ import { PrivescManager } from './services/privesc-manager';
 import { paths, isDev } from './services/paths';
 
 let mainWindow: BrowserWindow | null = null;
+let userDataPath: string;
+
+// Eager services — needed for the default Recon tab
 let toolRunner: ToolRunner;
 let nmapParser: NmapParser;
 let pythonRunner: PythonRunner;
 let depChecker: DependencyChecker;
 let targetStore: TargetStore;
 let operationsManager: OperationsManager;
-let msfClient: MsfRpcClient;
-let evilginxManager: EvilginxManager;
-let c2Server: C2Server;
-let collabHub: CollabHub;
-let profileManager: ProfileManager;
-let exfilManager: ExfilManager;
-let payloadFactory: PayloadFactory;
-let evasionManager: EvasionManager;
-let opsManager: OpsDashboardManager;
-let privescManager: PrivescManager;
+
+// Lazy services — initialized on first use
+let _msfClient: MsfRpcClient | null = null;
+let _evilginxManager: EvilginxManager | null = null;
+let _profileManager: ProfileManager | null = null;
+let _c2Server: C2Server | null = null;
+let _collabHub: CollabHub | null = null;
+let _exfilManager: ExfilManager | null = null;
+let _payloadFactory: PayloadFactory | null = null;
+let _evasionManager: EvasionManager | null = null;
+let _opsManager: OpsDashboardManager | null = null;
+let _privescManager: PrivescManager | null = null;
+
+function getMsfClient(): MsfRpcClient {
+  if (!_msfClient) _msfClient = new MsfRpcClient();
+  return _msfClient;
+}
+
+function getEvilginxManager(): EvilginxManager {
+  if (!_evilginxManager) _evilginxManager = new EvilginxManager(userDataPath);
+  return _evilginxManager;
+}
+
+function getProfileManager(): ProfileManager {
+  if (!_profileManager) _profileManager = new ProfileManager(userDataPath);
+  return _profileManager;
+}
+
+function getC2Server(): C2Server {
+  if (!_c2Server) {
+    _c2Server = new C2Server();
+    _c2Server.setProfileManager(getProfileManager());
+    _c2Server.attachCollab(getCollabHub());
+  }
+  return _c2Server;
+}
+
+function getCollabHub(): CollabHub {
+  if (!_collabHub) _collabHub = new CollabHub(userDataPath);
+  return _collabHub;
+}
+
+function getExfilManager(): ExfilManager {
+  if (!_exfilManager) _exfilManager = new ExfilManager(userDataPath);
+  return _exfilManager;
+}
+
+function getPayloadFactory(): PayloadFactory {
+  if (!_payloadFactory) _payloadFactory = new PayloadFactory(userDataPath);
+  return _payloadFactory;
+}
+
+function getEvasionManager(): EvasionManager {
+  if (!_evasionManager) _evasionManager = new EvasionManager();
+  return _evasionManager;
+}
+
+function getOpsManager(): OpsDashboardManager {
+  if (!_opsManager) _opsManager = new OpsDashboardManager(userDataPath);
+  return _opsManager;
+}
+
+function getPrivescManager(): PrivescManager {
+  if (!_privescManager) _privescManager = new PrivescManager();
+  return _privescManager;
+}
 
 function createWindow() {
   // Remove the default Electron menu bar (File, Edit, View, Window, Help)
@@ -517,25 +576,12 @@ function registerIpcHandlers() {
     }
   });
 
-  // ── Maigret OSINT Username Search ──
-  ipcMain.handle('run-maigret', async (_event, username: string) => {
-    if (!username || !username.trim()) {
-      return { error: 'No username provided', username: '' };
-    }
-    try {
-      const result = await pythonRunner.runScript('maigret_lookup.py', [username.trim()]);
-      return result;
-    } catch (err: any) {
-      return { error: err.message, username };
-    }
-  });
-
   // ── Metasploit RPC ──
   ipcMain.handle('msf-connect', async (_event, host: string, port: number, password: string) => {
     try {
-      msfClient = new MsfRpcClient(host, port, password);
-      await msfClient.connect();
-      const version = await msfClient.getVersion();
+      _msfClient = new MsfRpcClient(host, port, password);
+      await _msfClient.connect();
+      const version = await _msfClient.getVersion();
       return { connected: true, version };
     } catch (err: any) {
       return { connected: false, error: err.message };
@@ -543,56 +589,57 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('msf-disconnect', async () => {
-    if (msfClient) msfClient.disconnect();
+    const c = getMsfClient();
+    c.disconnect();
     return { success: true };
   });
 
   ipcMain.handle('msf-search', async (_event, query: string) => {
-    if (!msfClient?.isConnected()) throw new Error('Not connected to Metasploit');
-    return msfClient.searchExploits(query);
+    if (!getMsfClient().isConnected()) throw new Error('Not connected to Metasploit');
+    return getMsfClient().searchExploits(query);
   });
 
   ipcMain.handle('msf-generate-payload', async (_event, payload: string, lhost: string, lport: number) => {
-    if (!msfClient?.isConnected()) throw new Error('Not connected to Metasploit');
-    return msfClient.generatePayload(payload, lhost, lport);
+    if (!getMsfClient().isConnected()) throw new Error('Not connected to Metasploit');
+    return getMsfClient().generatePayload(payload, lhost, lport);
   });
 
   ipcMain.handle('msf-list-sessions', async () => {
-    if (!msfClient?.isConnected()) throw new Error('Not connected to Metasploit');
-    return msfClient.listSessions();
+    if (!getMsfClient().isConnected()) throw new Error('Not connected to Metasploit');
+    return getMsfClient().listSessions();
   });
 
   // ── Phishing / Evilginx ──
   ipcMain.handle('phish-check', async () => {
-    return evilginxManager.checkAvailability();
+    return getEvilginxManager().checkAvailability();
   });
 
   ipcMain.handle('phish-get-phishlets', async () => {
-    return evilginxManager.getPhishlets();
+    return getEvilginxManager().getPhishlets();
   });
 
   ipcMain.handle('phish-create-campaign', async (_event, name: string, targetDomain: string, phishlet: string) => {
-    return evilginxManager.createCampaign(name, targetDomain, phishlet);
+    return getEvilginxManager().createCampaign(name, targetDomain, phishlet);
   });
 
   ipcMain.handle('phish-get-campaigns', async () => {
-    return evilginxManager.getCampaigns();
+    return getEvilginxManager().getCampaigns();
   });
 
   ipcMain.handle('phish-start-campaign', async (_event, campaignId: string, domain: string, ip: string) => {
-    return evilginxManager.startCampaign(campaignId, domain, ip);
+    return getEvilginxManager().startCampaign(campaignId, domain, ip);
   });
 
   ipcMain.handle('phish-stop-campaign', async (_event, campaignId: string) => {
-    return evilginxManager.stopCampaign(campaignId);
+    return getEvilginxManager().stopCampaign(campaignId);
   });
 
   ipcMain.handle('phish-get-credentials', async (_event, campaignId: string) => {
-    return evilginxManager.getCapturedCredentials(campaignId);
+    return getEvilginxManager().getCapturedCredentials(campaignId);
   });
 
   ipcMain.handle('phish-delete-campaign', async (_event, campaignId: string) => {
-    return evilginxManager.deleteCampaign(campaignId);
+    return getEvilginxManager().deleteCampaign(campaignId);
   });
 
   ipcMain.handle('phish-import-phishlet', async () => {
@@ -608,7 +655,7 @@ function registerIpcHandlers() {
       const filePath = result.filePaths[0];
       const content = fs.readFileSync(filePath, 'utf-8');
       const name = path.basename(filePath).replace(/\.(yaml|yml|txt)$/, '');
-      const ok = evilginxManager.savePhishlet(name, content);
+      const ok = getEvilginxManager().savePhishlet(name, content);
       return { success: ok, message: ok ? `Imported phishlet: ${name}` : 'Failed to save phishlet' };
     } catch (err: any) {
       return { success: false, message: `Error: ${err.message}` };
@@ -617,195 +664,172 @@ function registerIpcHandlers() {
 
   // ── Team / Collaboration ──
   ipcMain.handle('team-heartbeat', async (_event, memberId: string, name: string, target?: string, tab?: string) => {
-    if (!collabHub) return null;
-    return collabHub.heartbeat(memberId, name, target, tab);
+    return getCollabHub().heartbeat(memberId, name, target, tab);
   });
 
   ipcMain.handle('team-get-members', async () => {
-    if (!collabHub) return [];
-    return collabHub.getMembers();
+    return getCollabHub().getMembers();
   });
 
   ipcMain.handle('team-add-activity', async (_event, entry: any) => {
-    if (!collabHub) return null;
-    return collabHub.addActivity(entry);
+    return getCollabHub().addActivity(entry);
   });
 
   ipcMain.handle('team-get-activity', async (_event, limit?: number) => {
-    if (!collabHub) return [];
-    return collabHub.getActivities(limit);
+    return getCollabHub().getActivities(limit);
   });
 
   ipcMain.handle('team-add-finding', async (_event, finding: any) => {
-    if (!collabHub) return null;
-    return collabHub.addFinding(finding);
+    return getCollabHub().addFinding(finding);
   });
 
   ipcMain.handle('team-update-finding', async (_event, id: string, updates: any) => {
-    if (!collabHub) return null;
-    return collabHub.updateFinding(id, updates);
+    return getCollabHub().updateFinding(id, updates);
   });
 
   ipcMain.handle('team-get-findings', async (_event, target?: string) => {
-    if (!collabHub) return [];
-    return collabHub.getFindings(target);
+    return getCollabHub().getFindings(target);
   });
 
   ipcMain.handle('team-delete-finding', async (_event, id: string) => {
-    if (!collabHub) return false;
-    return collabHub.deleteFinding(id);
+    return getCollabHub().deleteFinding(id);
   });
 
   ipcMain.handle('team-add-note', async (_event, note: any) => {
-    if (!collabHub) return null;
-    return collabHub.addNote(note);
+    return getCollabHub().addNote(note);
   });
 
   ipcMain.handle('team-get-notes', async (_event, target?: string) => {
-    if (!collabHub) return [];
-    return collabHub.getNotes(target);
+    return getCollabHub().getNotes(target);
   });
 
   ipcMain.handle('team-delete-note', async (_event, id: string) => {
-    if (!collabHub) return false;
-    return collabHub.deleteNote(id);
+    return getCollabHub().deleteNote(id);
   });
 
   ipcMain.handle('team-add-todo', async (_event, todo: any) => {
-    if (!collabHub) return null;
-    return collabHub.addTodo(todo);
+    return getCollabHub().addTodo(todo);
   });
 
   ipcMain.handle('team-update-todo', async (_event, id: string, updates: any) => {
-    if (!collabHub) return null;
-    return collabHub.updateTodo(id, updates);
+    return getCollabHub().updateTodo(id, updates);
   });
 
   ipcMain.handle('team-get-todos', async () => {
-    if (!collabHub) return [];
-    return collabHub.getTodos();
+    return getCollabHub().getTodos();
   });
 
   ipcMain.handle('team-delete-todo', async (_event, id: string) => {
-    if (!collabHub) return false;
-    return collabHub.deleteTodo(id);
+    return getCollabHub().deleteTodo(id);
   });
 
   ipcMain.handle('team-get-targets', async () => {
-    if (!collabHub) return [];
-    return collabHub.getTargets();
+    return getCollabHub().getTargets();
   });
 
   ipcMain.handle('team-checkin-target', async (_event, target: string, memberId: string, memberName: string) => {
-    if (!collabHub) return { success: false, message: 'Collaboration hub not available' };
-    return collabHub.checkInTarget(target, memberId, memberName);
+    return getCollabHub().checkInTarget(target, memberId, memberName);
   });
 
   ipcMain.handle('team-checkout-target', async (_event, target: string, memberId: string, memberName: string) => {
-    if (!collabHub) return null;
-    return collabHub.checkOutTarget(target, memberId, memberName);
+    return getCollabHub().checkOutTarget(target, memberId, memberName);
   });
 
   ipcMain.handle('team-update-target', async (_event, target: string, updates: any) => {
-    if (!collabHub) return null;
-    return collabHub.updateTarget(target, updates);
+    return getCollabHub().updateTarget(target, updates);
   });
 
   // ── C2 Profiles ──
   ipcMain.handle('profile-list', async () => {
-    if (!profileManager) return [];
-    return profileManager.list();
+    return getProfileManager().list();
   });
 
   ipcMain.handle('profile-get', async (_event, name: string) => {
-    if (!profileManager) return null;
-    return profileManager.get(name);
+    return getProfileManager().get(name);
   });
 
   ipcMain.handle('profile-save', async (_event, profile: any) => {
-    if (!profileManager) return { success: false };
-    const ok = profileManager.save(profile);
+    const ok = getProfileManager().save(profile);
     return { success: ok };
   });
 
   ipcMain.handle('profile-delete', async (_event, name: string) => {
-    if (!profileManager) return { success: false };
-    const ok = profileManager.delete(name);
+    const ok = getProfileManager().delete(name);
     return { success: ok };
   });
 
   // ── C2 Server ──
   ipcMain.handle('c2-start', async (_event, config: any) => {
-    if (c2Server && c2Server.isRunning()) {
+    if (_c2Server && _c2Server.isRunning()) {
       return { running: true };
     }
-    c2Server = new C2Server(config);
-    if (collabHub) c2Server.attachCollab(collabHub);
-    if (profileManager) c2Server.setProfileManager(profileManager);
-    const ok = await c2Server.start();
+    _c2Server = new C2Server(config);
+    _c2Server.attachCollab(getCollabHub());
+    _c2Server.setProfileManager(getProfileManager());
+    const ok = await _c2Server.start();
 
-    c2Server.on('started', (info) => {
+    _c2Server.on('started', (info) => {
       mainWindow?.webContents.send('c2-event', { type: 'started', data: info });
     });
-    c2Server.on('newAgent', (agent) => {
+    _c2Server.on('newAgent', (agent) => {
       mainWindow?.webContents.send('c2-event', { type: 'newAgent', data: agent });
     });
-    c2Server.on('taskResult', (task) => {
+    _c2Server.on('taskResult', (task) => {
       mainWindow?.webContents.send('c2-event', { type: 'taskResult', data: task });
     });
-    c2Server.on('error', (msg) => {
+    _c2Server.on('error', (msg) => {
       mainWindow?.webContents.send('c2-event', { type: 'error', data: msg });
     });
 
-    return { running: ok, config: c2Server.getConfig() };
+    return { running: ok, config: _c2Server.getConfig() };
   });
 
   ipcMain.handle('c2-stop', async () => {
-    if (c2Server) c2Server.stop();
+    if (_c2Server) _c2Server.stop();
     return { success: true };
   });
 
   ipcMain.handle('c2-status', async () => {
-    if (!c2Server || !c2Server.isRunning()) {
+    if (!_c2Server || !_c2Server.isRunning()) {
       return { running: false, agents: 0, tasks: 0 };
     }
     return {
       running: true,
-      agents: c2Server.getAgents().length,
-      tasks: c2Server.getTasks().length,
-      config: c2Server.getConfig(),
+      agents: _c2Server.getAgents().length,
+      tasks: _c2Server.getTasks().length,
+      config: _c2Server.getConfig(),
     };
   });
 
   ipcMain.handle('c2-agents', async () => {
-    return c2Server?.getAgents() || [];
+    return _c2Server?.getAgents() || [];
   });
 
   ipcMain.handle('c2-tasks', async (_event, agentId: string) => {
-    return c2Server?.getTasks(agentId) || [];
+    return _c2Server?.getTasks(agentId) || [];
   });
 
   ipcMain.handle('c2-send-command', async (_event, agentId: string, command: string) => {
-    return c2Server?.queueCommand(agentId, command) || null;
+    return _c2Server?.queueCommand(agentId, command) || null;
   });
 
   ipcMain.handle('c2-broadcast', async (_event, command: string) => {
-    return c2Server?.broadcastCommand(command) || [];
+    return _c2Server?.broadcastCommand(command) || [];
   });
 
   ipcMain.handle('c2-generate-payload', async (_event, type: string, sleepSeconds?: number, jitterPercent?: number, killDate?: string) => {
-    if (!c2Server) return '';
-    return c2Server.generateAgentPayload(type, sleepSeconds, jitterPercent, killDate);
+    if (!_c2Server) return '';
+    return _c2Server.generateAgentPayload(type, sleepSeconds, jitterPercent, killDate);
   });
 
   // ── Exfiltration ──
   ipcMain.handle('exfil-jobs', async () => {
-    return exfilManager.getJobs();
+    return getExfilManager().getJobs();
   });
 
   ipcMain.handle('exfil-create-job', async (_event, name: string, targetDir: string,
     compression?: string, encryptionAlgo?: string, destination?: string, destinationUrl?: string) => {
-    return exfilManager.createFileCollectionJob(
+    return getExfilManager().createFileCollectionJob(
       name, targetDir, ['*'], true,
       (compression as any) || 'max',
       (encryptionAlgo as any) || 'aes-256-gcm',
@@ -815,52 +839,52 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('exfil-collect-files', async (_event, jobId: string) => {
-    return exfilManager.collectFiles(jobId);
+    return getExfilManager().collectFiles(jobId);
   });
 
   ipcMain.handle('exfil-screenshot', async () => {
-    return exfilManager.takeScreenshot();
+    return getExfilManager().takeScreenshot();
   });
 
   ipcMain.handle('exfil-browser-data', async () => {
-    return exfilManager.collectBrowserData();
+    return getExfilManager().collectBrowserData();
   });
 
   ipcMain.handle('exfil-package', async (_event, jobId: string) => {
-    return exfilManager.packageData(jobId);
+    return getExfilManager().packageData(jobId);
   });
 
   ipcMain.handle('exfil-exfiltrate', async (_event, jobId: string) => {
-    return exfilManager.exfiltrateData(jobId);
+    return getExfilManager().exfiltrateData(jobId);
   });
 
   ipcMain.handle('exfil-update-destination', async (_event, jobId: string, destination: string, url: string) => {
-    return exfilManager.updateJobDestination(jobId, destination as any, url);
+    return getExfilManager().updateJobDestination(jobId, destination as any, url);
   });
 
   ipcMain.handle('exfil-update-encryption', async (_event, jobId: string, algo: string) => {
-    return exfilManager.updateJobEncryption(jobId, algo as any);
+    return getExfilManager().updateJobEncryption(jobId, algo as any);
   });
 
   ipcMain.handle('exfil-update-compression', async (_event, jobId: string, level: string) => {
-    return exfilManager.updateJobCompression(jobId, level as any);
+    return getExfilManager().updateJobCompression(jobId, level as any);
   });
 
   ipcMain.handle('exfil-set-key', async (_event, keyHex: string) => {
-    exfilManager.setEncryptionKey(keyHex);
+    getExfilManager().setEncryptionKey(keyHex);
     return { success: true };
   });
 
   ipcMain.handle('exfil-total-size', async () => {
-    return exfilManager.getTotalSize();
+    return getExfilManager().getTotalSize();
   });
 
   ipcMain.handle('exfil-key', async () => {
-    return exfilManager.getEncryptionKey();
+    return getExfilManager().getEncryptionKey();
   });
 
   ipcMain.handle('exfil-clear', async () => {
-    exfilManager.clearAll();
+    getExfilManager().clearAll();
   });
 
   // ── Save Report ──
@@ -1025,24 +1049,24 @@ function registerIpcHandlers() {
   ipcMain.handle('payload-generate', async (_event, type: string, lhost: string, lport: number, kind?: string) => {
     switch (type) {
       case 'ps1':
-        return payloadFactory.generatePs1(lhost, lport, kind || 'powershell_encoded');
+        return getPayloadFactory().generatePs1(lhost, lport, kind || 'powershell_encoded');
       case 'csharp':
-        return payloadFactory.generateCsharp(lhost, lport);
+        return getPayloadFactory().generateCsharp(lhost, lport);
       case 'python':
-        return payloadFactory.generatePython(lhost, lport);
+        return getPayloadFactory().generatePython(lhost, lport);
       case 'shellcode':
-        return payloadFactory.generateShellcode(lhost, lport, kind || 'x64');
+        return getPayloadFactory().generateShellcode(lhost, lport, kind || 'x64');
       default:
         return `Unknown payload type: ${type}`;
     }
   });
 
   ipcMain.handle('payload-obfuscate', async (_event, payload: string, method: string) => {
-    return payloadFactory.obfuscate(payload, method);
+    return getPayloadFactory().obfuscate(payload, method);
   });
 
   ipcMain.handle('payload-save', async (_event, payload: string, filename: string) => {
-    return payloadFactory.save(payload, filename);
+    return getPayloadFactory().save(payload, filename);
   });
 
   ipcMain.handle('payload-import', async () => {
@@ -1060,72 +1084,72 @@ function registerIpcHandlers() {
 
   // ── Evasion ──
   ipcMain.handle('evasion-get-bypasses', async () => {
-    return evasionManager.getAmsiBypasses();
+    return getEvasionManager().getAmsiBypasses();
   });
 
   ipcMain.handle('evasion-get-etp-patches', async () => {
-    return evasionManager.getEtpPatches();
+    return getEvasionManager().getEtpPatches();
   });
 
   ipcMain.handle('evasion-run-bypass', async (_event, name: string) => {
-    return await evasionManager.runAmsiBypass(name);
+    return await getEvasionManager().runAmsiBypass(name);
   });
 
   ipcMain.handle('evasion-patch-etw', async () => {
-    return await evasionManager.patchEtw();
+    return await getEvasionManager().patchEtw();
   });
 
   ipcMain.handle('evasion-get-techniques', async () => {
-    return evasionManager.getTechniques();
+    return getEvasionManager().getTechniques();
   });
 
   ipcMain.handle('evasion-inject', async (_event, pid: number, shellcodeB64: string, technique: string) => {
-    return await evasionManager.injectShellcode(pid, shellcodeB64, technique);
+    return await getEvasionManager().injectShellcode(pid, shellcodeB64, technique);
   });
 
   ipcMain.handle('evasion-check-file', async (_event, filePath: string) => {
-    return await evasionManager.checkFile(filePath);
+    return await getEvasionManager().checkFile(filePath);
   });
 
   // ── Ops Dashboard ──
   ipcMain.handle('ops-save-note', async (_event, target: string, note: string) => {
-    return opsManager.saveNote(target, note);
+    return getOpsManager().saveNote(target, note);
   });
 
   ipcMain.handle('ops-get-notes', async (_event, target: string) => {
-    return opsManager.getNotes(target);
+    return getOpsManager().getNotes(target);
   });
 
   ipcMain.handle('ops-get-findings', async () => {
-    return opsManager.getFindings();
+    return getOpsManager().getFindings();
   });
 
   ipcMain.handle('ops-save-finding', async (_event, finding: any) => {
-    return opsManager.saveFinding(finding);
+    return getOpsManager().saveFinding(finding);
   });
 
   ipcMain.handle('ops-get-todos', async () => {
-    return opsManager.getTodos();
+    return getOpsManager().getTodos();
   });
 
   ipcMain.handle('ops-save-todo', async (_event, todo: any) => {
-    return opsManager.saveTodo(todo);
+    return getOpsManager().saveTodo(todo);
   });
 
   ipcMain.handle('ops-toggle-todo', async (_event, index: number) => {
-    return opsManager.toggleTodo(index);
+    return getOpsManager().toggleTodo(index);
   });
 
   ipcMain.handle('ops-delete-todo', async (_event, index: number) => {
-    return opsManager.deleteTodo(index);
+    return getOpsManager().deleteTodo(index);
   });
 
   ipcMain.handle('ops-save-screenshot', async (_event, name: string, dataUrl: string) => {
-    return opsManager.saveScreenshot(name, dataUrl);
+    return getOpsManager().saveScreenshot(name, dataUrl);
   });
 
   ipcMain.handle('ops-get-screenshots', async () => {
-    return opsManager.getScreenshots();
+    return getOpsManager().getScreenshots();
   });
 
   ipcMain.handle('ops-get-timeline', async () => {
@@ -1135,36 +1159,36 @@ function registerIpcHandlers() {
     for (const entry of history) {
       activity.push({ target: entry.target, timestamp: entry.timestamp, type: 'scan', detail: Object.keys(entry.results || {}).join(', ') });
     }
-    return opsManager.getTimeline(activity);
+    return getOpsManager().getTimeline(activity);
   });
 
   // ── Privilege Escalation ──
   ipcMain.handle('privesc-system-info', async () => {
-    return privescManager.getSystemInfo();
+    return getPrivescManager().getSystemInfo();
   });
 
   ipcMain.handle('privesc-run-checks', async () => {
-    return await privescManager.runChecks();
+    return await getPrivescManager().runChecks();
   });
 
   ipcMain.handle('privesc-powerup', async () => {
-    return await privescManager.runPowerUp();
+    return await getPrivescManager().runPowerUp();
   });
 
   ipcMain.handle('privesc-suggest-exploit', async () => {
-    return privescManager.suggestExploit();
+    return getPrivescManager().suggestExploit();
   });
 
   ipcMain.handle('privesc-enum-services', async () => {
-    return await privescManager.enumServices();
+    return await getPrivescManager().enumServices();
   });
 
   ipcMain.handle('privesc-unquoted-paths', async () => {
-    return privescManager.checkUnquotedPaths();
+    return getPrivescManager().checkUnquotedPaths();
   });
 
   ipcMain.handle('privesc-always-install-elevated', async () => {
-    return privescManager.checkAlwaysInstallElevated();
+    return getPrivescManager().checkAlwaysInstallElevated();
   });
 
   // ── File dialogs ──
@@ -1193,7 +1217,7 @@ process.on('unhandledRejection', (reason) => {
 
 app.whenReady().then(() => {
   try {
-    const userDataPath = app.getPath('userData');
+    userDataPath = app.getPath('userData');
 
     toolRunner = new ToolRunner();
     nmapParser = new NmapParser();
@@ -1201,18 +1225,6 @@ app.whenReady().then(() => {
     depChecker = new DependencyChecker(userDataPath);
     targetStore = new TargetStore(userDataPath);
     operationsManager = new OperationsManager(userDataPath);
-    msfClient = new MsfRpcClient();
-    evilginxManager = new EvilginxManager(userDataPath);
-    profileManager = new ProfileManager(userDataPath);
-    c2Server = new C2Server();
-    c2Server.setProfileManager(profileManager);
-    collabHub = new CollabHub(userDataPath);
-    c2Server.attachCollab(collabHub);
-    exfilManager = new ExfilManager(userDataPath);
-    payloadFactory = new PayloadFactory(userDataPath);
-    evasionManager = new EvasionManager();
-    opsManager = new OpsDashboardManager(userDataPath);
-    privescManager = new PrivescManager();
 
     registerIpcHandlers();
     createWindow();

@@ -26,7 +26,6 @@ export class DependencyChecker {
     python: DepDetail;
     pip: DepDetail;
     nodejs: DepDetail;
-    maigret: DepDetail;
     metasploit: DepDetail;
     msfRunning: DepDetail;
     evilginx: DepDetail;
@@ -37,7 +36,6 @@ export class DependencyChecker {
     const python = await this.checkPython();
     const pip = await this.checkPip();
     const nodejs = await this.checkNodejs();
-    const maigret = await this.checkMaigret();
     const metasploit = await this.checkMetasploit();
     const msfRunning = await this.checkMsfRunning();
     const evilginx = await this.checkEvilginx();
@@ -48,7 +46,6 @@ export class DependencyChecker {
       python,
       pip,
       nodejs,
-      maigret,
       metasploit,
       msfRunning,
       evilginx,
@@ -122,7 +119,7 @@ export class DependencyChecker {
       results.python = { status: 'already_installed', version: pythonOk.version };
     }
 
-    // Pip packages (includes maigret now)
+    // Pip packages
     const pipOk = await this.checkPip();
     if (pipOk.installed) {
       results.pip = await this.installPipPackages();
@@ -136,14 +133,6 @@ export class DependencyChecker {
       results.nodejs = await this.installNodejs();
     } else {
       results.nodejs = { status: 'already_installed', version: nodeOk.version };
-    }
-
-    // Maigret (Python package)
-    const maigretOk = await this.checkMaigret();
-    if (!maigretOk.installed) {
-      results.maigret = await this.installMaigret();
-    } else {
-      results.maigret = { status: 'already_installed', version: maigretOk.version };
     }
 
     // Metasploit (via script)
@@ -284,24 +273,6 @@ export class DependencyChecker {
     return { installed: false, detail: 'Evilginx2 not found on PATH, in standard paths, or in WSL' };
   }
 
-  private async checkMaigret(): Promise<DepDetail> {
-    try {
-      const result = execSync('python -m pip show maigret 2>&1', { stdio: 'pipe', timeout: 3000, shell: true as any });
-      const output = result.toString().trim();
-      const versionMatch = output.match(/^Version:\s*(.+)$/m);
-      const version = versionMatch ? versionMatch[1] : 'unknown';
-      return { installed: true, version, detail: 'Maigret Python package installed' };
-    } catch {
-      // Also check if maigret CLI is directly available
-      try {
-        const result = execSync('maigret --help 2>&1', { stdio: 'pipe', timeout: 3000, shell: true as any });
-        return { installed: true, version: 'unknown', detail: 'maigret CLI found on PATH' };
-      } catch {
-        return { installed: false, detail: 'Maigret not installed. Run: pip install maigret' };
-      }
-    }
-  }
-
   private async checkNodejs(): Promise<DepDetail> {
     try {
       const result = execSync('node --version', { stdio: 'pipe', timeout: 3000, shell: true as any });
@@ -325,20 +296,6 @@ export class DependencyChecker {
         }
       }
       return { installed: false, detail: 'Node.js not found. Download from https://nodejs.org' };
-    }
-  }
-
-  private async installMaigret(): Promise<{ success: boolean; message: string }> {
-    try {
-      execSync('python -m pip install maigret --quiet', { timeout: 120000, shell: true as any });
-      // Verify installation
-      const check = await this.checkMaigret();
-      if (check.installed) {
-        return { success: true, message: `Maigret installed successfully (${check.version || 'unknown version'})` };
-      }
-      return { success: false, message: 'Maigret pip install completed but verification failed' };
-    } catch (err: any) {
-      return { success: false, message: `Failed to install maigret: ${err.message}` };
     }
   }
 

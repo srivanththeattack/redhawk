@@ -232,13 +232,6 @@ export function useScan() {
     );
   }, []);
 
-  const runMaigret = useCallback(async (username: string) => {
-    await runTask('maigret', 'maigret username OSINT',
-      () => window.api.runMaigret(username),
-      'maigret',
-    );
-  }, []);
-
   const loadHistory = useCallback(async () => {
     try {
       const h = await window.api.getScanHistory();
@@ -290,7 +283,6 @@ export function useScan() {
     runDirBrute,
     runServiceScan,
     runVulnScan,
-    runMaigret,
     loadHistory,
     installDeps,
     reset,

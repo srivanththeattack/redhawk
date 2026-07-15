@@ -35,28 +35,21 @@ const TAB_LABELS: Record<TabId, { label: string; icon: string }> = {
 };
 
 function TabContent({ tabId, scan }: { tabId: TabId; scan: ReturnType<typeof useScan> }) {
-  switch (tabId) {
-    case 'recon':
-      return <ReconContent scan={scan} />;
-    case 'exploit':
-      return <MsfPanel />;
-    case 'phish':
-      return <PhishingPanel />;
-    case 'payload':
-      return <PayloadPanel />;
-    case 'evade':
-      return <EvadePanel />;
-    case 'privesc':
-      return <PrivescPanel />;
-    case 'c2':
-      return <C2Panel />;
-    case 'exfil':
-      return <ExfilPanel />;
-    case 'ops':
-      return <OpsDashboard scan={scan} />;
-    case 'team':
-      return <TeamPanel />;
-  }
+  const content = (() => {
+    switch (tabId) {
+      case 'recon': return <ReconContent scan={scan} />;
+      case 'exploit': return <MsfPanel />;
+      case 'phish': return <PhishingPanel />;
+      case 'payload': return <PayloadPanel />;
+      case 'evade': return <EvadePanel />;
+      case 'privesc': return <PrivescPanel />;
+      case 'c2': return <C2Panel />;
+      case 'exfil': return <ExfilPanel />;
+      case 'ops': return <OpsDashboard scan={scan} />;
+      case 'team': return <TeamPanel />;
+    }
+  })();
+  return <div className="tab-switch-enter" key={tabId}>{content}</div>;
 }
 
 export function SplitPaneContainer({ panes, dragging, scan, onRemovePane, onCycleTab, onStartResize }: SplitPaneContainerProps) {

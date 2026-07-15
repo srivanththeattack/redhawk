@@ -16,7 +16,6 @@ export interface ScanTaskState {
   dirBrute: ScanTaskStatus;
   serviceScan: ScanTaskStatus;
   vulnScan: ScanTaskStatus;
-  maigret: ScanTaskStatus;
 }
 
 const DEFAULT_TASK_STATE: ScanTaskState = {
@@ -32,7 +31,6 @@ const DEFAULT_TASK_STATE: ScanTaskState = {
   dirBrute: 'idle',
   serviceScan: 'idle',
   vulnScan: 'idle',
-  maigret: 'idle',
 };
 
 // Kill chain phase tracking

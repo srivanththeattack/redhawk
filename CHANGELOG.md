@@ -6,29 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [0.1.7] — 2026-07-15
-
-### Fixed
-- **Python runner killing maigret after 30s** — `python-runner.ts` had `timeout: 30000` in `spawn()` options. Node.js v24's `spawn` honors `timeout`, which killed the maigret subprocess before it could finish scanning 3000+ sites. Removed the timeout — the wrapper handles its own timeout internally.
-
----
-
 ## [0.1.6] — 2026-07-15
 
 ### Added
 
-#### Maigret OSINT Reconnaissance
-- **New scan type: Maigret username search** — enter any username and search across hundreds of social networks and websites
-- Runs maigret's full `--all` enumeration with structured JSON results (sites found, URLs, status)
-- Full scan pipeline integration: task status tracking, Zustand state, results panel support
-- Maigret installed automatically via `pip install maigret` (added to `requirements.txt`)
-- Dedicated **Maigret** button in Recon tab (prompts for username, styled with fuchsia accent)
-
-#### Full Dependency Auto-Installer (7 tools)
+#### Full Dependency Auto-Installer (6 tools)
 - **Nmap** — silent installer download from nmap.org
 - **Python 3** — embedded runtime via download script
 - **Node.js** — winget → Chocolatey → download page fallback
-- **Maigret** — `pip install maigret` via requirements.txt
 - **Evilginx2** — WSL-aware installer script
 - **Metasploit** — standard path detection + installer script
 - **WSL** — `wsl --install` with automatic detection
@@ -44,14 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Feedback shown in the installer's detail log
 
 ### Changed
-- **install-deps.ps1** completely rewritten — now covers all 7 tools with admin detection, per-tool confirmation, and winget/choco/fallback chains
-- **DependencyChecker.installAll()** now installs node.js, maigret, and WSL in addition to existing tools
-- **Requirements.txt** includes `maigret==1.0.0` for automatic pip installation
+- **install-deps.ps1** completely rewritten — now covers all 6 tools with admin detection, per-tool confirmation, and winget/choco/fallback chains
+- **DependencyChecker.installAll()** now installs node.js and WSL in addition to existing tools
 - **package.json** version bumped to 0.1.6
-
-### Fixed
-- **Maigret wrapper (maigret_lookup.py)** — completely rewritten to fix exit-code-2 crash. Old wrapper used `--json -` (wrong flag for maigret v0.6.3); now uses `-J simple --folderoutput <dir>` with subprocess. Added `utf-8` encoding + `errors='replace'` to handle non-ASCII console output. Increased timeout from 300s to 3600s for full 3000+ site scans.
-- **Maigret UI** — mode selector (Nmap/Maigret) with styled buttons, username input, card-grid results with favicons, HTML export support
 
 ---
 

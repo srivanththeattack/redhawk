@@ -37,8 +37,6 @@ const api = {
   runGeoIp: (target: string) => ipcRenderer.invoke('run-geoip', target),
   runReverseDns: (target: string) => ipcRenderer.invoke('run-reverse-dns', target),
   runPortHealth: (target: string, port: number) => ipcRenderer.invoke('run-port-health', target, port),
-  runMaigret: (username: string) => ipcRenderer.invoke('run-maigret', username),
-
   // Metasploit
   msfConnect: (host: string, port: number, password: string) =>
     ipcRenderer.invoke('msf-connect', host, port, password),
