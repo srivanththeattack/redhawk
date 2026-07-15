@@ -5,9 +5,11 @@ interface TargetInputProps {
   onTargetChange: (target: string) => void;
   onScan: () => void;
   isScanning: boolean;
+  placeholder?: string;
+  label?: string;
 }
 
-export function TargetInput({ target, onTargetChange, onScan, isScanning }: TargetInputProps) {
+export function TargetInput({ target, onTargetChange, onScan, isScanning, placeholder, label }: TargetInputProps) {
   const [isValid, setIsValid] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,6 +27,11 @@ export function TargetInput({ target, onTargetChange, onScan, isScanning }: Targ
   const validateAndSet = (value: string) => {
     onTargetChange(value);
     if (!value.trim()) {
+      setIsValid(true);
+      return;
+    }
+    // In maigret mode (username search), accept any non-empty input
+    if (placeholder?.toLowerCase().includes('username')) {
       setIsValid(true);
       return;
     }
@@ -64,7 +71,7 @@ export function TargetInput({ target, onTargetChange, onScan, isScanning }: Targ
               value={target}
               onChange={(e) => validateAndSet(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Enter target — IP, domain, or hostname..."
+              placeholder={placeholder || "Enter target — IP, domain, or hostname..."}
               className={`input-field pl-10 h-12 text-base ${
                 !isValid && target.trim() ? 'border-redhawk-500 focus:ring-redhawk-500' : ''
               }`}
@@ -75,7 +82,9 @@ export function TargetInput({ target, onTargetChange, onScan, isScanning }: Targ
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                Enter a valid IP, domain (example.com), or hostname
+                {placeholder?.toLowerCase().includes('username')
+                  ? 'Enter a valid username'
+                  : 'Enter a valid IP, domain (example.com), or hostname'}
               </p>
             )}
           </div>

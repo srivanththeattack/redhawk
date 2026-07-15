@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import type { ScanResults, NmapResult } from '../types/target';
+import type { ScanResults, NmapResult, MaigretResult } from '../types/target';
+import { generateMaigretHtml } from './MaigretResults';
 
 interface ReportExporterProps {
   results: ScanResults | null;
@@ -28,7 +29,7 @@ function renderNmapHtml(n: NmapResult): string {
 }
 
 function generateReportHtml(results: ScanResults): string {
-  const { target, timestamp, whois, dns, subdomains, emails, nmap, ssl, httpHeaders, waf, tech, dirBrute, serviceScan, vulnScan } = results;
+  const { target, timestamp, whois, dns, subdomains, emails, nmap, ssl, httpHeaders, waf, tech, dirBrute, serviceScan, vulnScan, maigret } = results;
   const date = new Date(timestamp).toLocaleString();
 
   const section = (title: string, content: string) => {
@@ -186,6 +187,10 @@ function generateReportHtml(results: ScanResults): string {
     sections.push({ title: '🔬 Service Version Scan', content: renderNmapHtml(serviceScan as NmapResult) });
   }
 
+  if (hasData(maigret)) {
+    sections.push({ title: '🔍 Maigret OSINT', content: generateMaigretHtml(maigret as MaigretResult) });
+  }
+
   if (hasData(vulnScan)) {
     const v = vulnScan as any;
     sections.push({
@@ -283,7 +288,7 @@ export function ReportExporter({ results, phase }: ReportExporterProps) {
   const [error, setError] = useState<string | null>(null);
   const [savingOpReport, setSavingOpReport] = useState(false);
 
-  const hasData = results && (results.whois || results.dns || results.subdomains || results.emails || results.nmap || results.ssl || results.httpHeaders || results.waf || results.tech || results.dirBrute || results.serviceScan || results.vulnScan);
+  const hasData = results && (results.whois || results.dns || results.subdomains || results.emails || results.nmap || results.ssl || results.httpHeaders || results.waf || results.tech || results.dirBrute || results.serviceScan || results.vulnScan || results.maigret);
 
   const handleSave = useCallback(async () => {
     if (!results) return;

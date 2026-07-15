@@ -42,6 +42,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Requirements.txt** includes `maigret==1.0.0` for automatic pip installation
 - **package.json** version bumped to 0.1.6
 
+### Fixed
+- **Maigret wrapper (maigret_lookup.py)** — completely rewritten to fix exit-code-2 crash. Old wrapper used `--json -` (wrong flag for maigret v0.6.3); now uses `-J simple --folderoutput <dir>` with subprocess. Added `utf-8` encoding + `errors='replace'` to handle non-ASCII console output. Increased timeout from 300s to 3600s for full 3000+ site scans.
+- **Maigret UI** — mode selector (Nmap/Maigret) with styled buttons, username input, card-grid results with favicons, HTML export support
+
 ---
 
 ## [0.1.5] — 2026-07-14

@@ -4,11 +4,14 @@ import { TargetInput } from './TargetInput';
 import { KillChainBar } from './KillChainBar';
 import { ScanProgress } from './ScanProgress';
 import { ResultsPanel } from './ResultsPanel';
+import { MaigretResults } from './MaigretResults';
 import { ReportExporter } from './ReportExporter';
 
 interface ReconContentProps {
   scan: ReturnType<typeof useScan>;
 }
+
+type ReconMode = 'nmap' | 'maigret';
 
 function getFirstRun(): boolean {
   try {
@@ -27,6 +30,7 @@ export function ReconContent({ scan }: ReconContentProps) {
   const [lastRunSection, setLastRunSection] = useState<string | null>(null);
   const lastRunRef = useRef<string | null>(null);
   const [showGuide, setShowGuide] = useState(getFirstRun);
+  const [reconMode, setReconMode] = useState<ReconMode>('nmap');
 
   const handleSectionRender = useCallback((id: string, el: HTMLDivElement) => {
     sectionRefs.current.set(id, el);
@@ -37,7 +41,7 @@ export function ReconContent({ scan }: ReconContentProps) {
     if (showGuide && !scan.target) {
       scan.setTarget('example.com');
     }
-  }, []); // only on mount
+  }, []);
 
   // Scroll to the last-run section when results appear
   useEffect(() => {
@@ -60,17 +64,78 @@ export function ReconContent({ scan }: ReconContentProps) {
     runner();
   }, []);
 
+  const handleLaunchScan = useCallback(() => {
+    dismissFirstRun();
+    setShowGuide(false);
+    if (reconMode === 'maigret') {
+      const username = scan.target.trim();
+      if (!username) return;
+      scan.runMaigret(username);
+    } else {
+      scan.startScan();
+    }
+  }, [reconMode, scan]);
+
+  const handleMaigretRun = useCallback(() => {
+    const username = scan.target.trim();
+    if (!username) return;
+    dismissFirstRun();
+    setShowGuide(false);
+    scan.runMaigret(username);
+  }, [scan]);
+
   return (
     <div className="space-y-4">
+      {/* ── MODE SELECTOR ── */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setReconMode('nmap')}
+          className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+            reconMode === 'nmap'
+              ? 'bg-redhawk-600 text-white shadow-lg shadow-redhawk-600/20'
+              : 'bg-midnight-800/50 text-gray-400 hover:text-gray-200 border border-midnight-700/50'
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+            <path d="M11 8v6" />
+            <path d="M8 11h6" />
+          </svg>
+          Nmap Recon
+        </button>
+        <button
+          onClick={() => setReconMode('maigret')}
+          className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+            reconMode === 'maigret'
+              ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/20'
+              : 'bg-midnight-800/50 text-gray-400 hover:text-gray-200 border border-midnight-700/50'
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+            <path d="M3 11h3" />
+            <path d="M18 11h3" />
+            <path d="M11 3v3" />
+            <path d="M11 18v3" />
+          </svg>
+          Maigret OSINT
+        </button>
+      </div>
+
+      {/* ── TARGET INPUT ── */}
       <TargetInput
         target={scan.target}
         onTargetChange={scan.setTarget}
-        onScan={() => { dismissFirstRun(); setShowGuide(false); scan.startScan(); }}
+        onScan={handleLaunchScan}
         isScanning={scan.phase === 'scanning'}
+        placeholder={reconMode === 'maigret' ? 'Enter username to search...' : 'Enter domain or IP...'}
+        label={reconMode === 'maigret' ? 'Username' : 'Target'}
       />
 
       {/* First-run quick start guide */}
-      {showGuide && (
+      {showGuide && reconMode === 'nmap' && (
         <div className="card border-redhawk-700/30 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-redhawk-600/5 to-transparent pointer-events-none" />
           <button
@@ -139,120 +204,145 @@ export function ReconContent({ scan }: ReconContentProps) {
         </div>
       )}
 
-      {/* Quick action buttons */}
-      {scan.target && (
-        <div className="flex flex-wrap gap-1.5">
-          <button onClick={() => runScan('whois', () => scan.runWhois(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-blue-700/50">
-            📋 WHOIS
-          </button>
-          <button onClick={() => runScan('dns', () => scan.runDnsEnum(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-purple-700/50">
-            🌐 DNS
-          </button>
-          <button onClick={() => runScan('subdomains', () => scan.runSubdomainEnum(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-yellow-700/50">
-            🌍 Subdomains
-          </button>
-          <button onClick={() => runScan('emails', () => scan.runEmailOsint(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-pink-700/50">
-            📧 Emails
-          </button>
-          <button onClick={() => runScan('nmap', () => scan.runNmapScan(scan.target, '-sS -T4 --top-ports 1000'))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-green-700/50">
-            🔍 Port Scan
-          </button>
-          <button onClick={() => runScan('ssl', () => scan.runSslScan(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-cyan-700/50">
-            🔒 SSL Cert
-          </button>
-          <button onClick={() => runScan('httpHeaders', () => scan.runHttpHeaders(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-indigo-700/50">
-            📡 HTTP Headers
-          </button>
-          <button onClick={() => runScan('waf', () => scan.runWafDetect(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-orange-700/50">
-            🛡️ WAF Detect
-          </button>
-          <button onClick={() => runScan('tech', () => scan.runTechDetect(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-teal-700/50">
-            ⚙️ Tech Detect
-          </button>
-          <button onClick={() => runScan('dirBrute', () => scan.runDirBrute(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-red-700/50">
-            📁 Dir Brute
-          </button>
-          <button onClick={() => runScan('serviceScan', () => scan.runServiceScan(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-emerald-700/50">
-            🔬 Service Scan
-          </button>
-          <button onClick={() => runScan('vulnScan', () => scan.runVulnScan(scan.target))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-rose-700/50">
-            💀 Vuln Scan
-          </button>
-          <button onClick={() => runScan('nmap', () => scan.runNmapScan(scan.target, '-sS -sV -T2 --top-ports 1000'))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-slate-500/50"
-            title="Stealth scan - slower, less likely to be detected">
-            🥷 Stealth Scan
-          </button>
-          <button onClick={() => runScan('nmap', () => scan.runNmapScan(scan.target, '-sS -sV -T5 -A --top-ports 1000'))}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-red-700/50"
-            title="Hyper aggressive - fast but noisy, includes OS detection & traceroute">
-            🔥 Hyper Scan
-          </button>
-          <button onClick={async () => {
-            const result = await window.api.runGeoIp(scan.target);
-            scan.appendOutput(`\n--- IP Geolocation ---\n${JSON.stringify(result, null, 2)}`);
-          }}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-lime-700/50"
-            title="Look up IP geolocation data">
-            🌍 GeoIP
-          </button>
-          <button onClick={async () => {
-            const result = await window.api.runReverseDns(scan.target);
-            scan.appendOutput(`\n--- Reverse DNS ---\n${JSON.stringify(result, null, 2)}`);
-          }}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-emerald-700/50"
-            title="Reverse DNS lookup for IP/hostname">
-            🔄 Reverse DNS
-          </button>
-          <button onClick={async () => {
-            const port = prompt('Port number:', '80');
-            if (!port) return;
-            const result = await window.api.runPortHealth(scan.target, parseInt(port));
-            scan.appendOutput(`\n--- Port Health (${port}) ---\n${JSON.stringify(result, null, 2)}`);
-          }}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-amber-700/50"
-            title="Check if a specific port is open">
-            ❤️ Port Health
-          </button>
-          <button onClick={async () => {
-            const username = prompt('Username to search:', '');
-            if (!username) return;
-            scan.runMaigret(username);
-          }}
-            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-fuchsia-700/50"
-            title="OSINT username search across hundreds of social networks">
-            🔍 Maigret
-          </button>
-        </div>
+      {/* ── MAIGRET MODE ── */}
+      {reconMode === 'maigret' && (
+        <>
+          {/* Quick action for Maigret mode */}
+          {scan.target && (
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={handleMaigretRun}
+                className="btn-ghost text-xs py-1.5 px-3 border border-fuchsia-700/50 hover:border-fuchsia-500/50 bg-fuchsia-900/10"
+                disabled={scan.phase === 'scanning'}>
+                <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                  <path d="M3 11h3" />
+                  <path d="M18 11h3" />
+                  <path d="M11 3v3" />
+                  <path d="M11 18v3" />
+                </svg>
+                Search Username
+              </button>
+            </div>
+          )}
+
+          {/* Maigret results */}
+          {scan.results?.maigret && (
+            <MaigretResults data={scan.results.maigret} />
+          )}
+        </>
       )}
 
-      {scan.target && <KillChainBar chain={scan.killChain} />}
-      <ScanProgress
-        phase={scan.phase}
-        messages={scan.statusMessages}
-        output={scan.scanOutput}
-        collapsible={true}
-      />
-      <ResultsPanel
-        results={scan.results}
-        phase={scan.phase}
-        scanTasks={scan.scanTasks}
-        onSectionRender={handleSectionRender}
-        lastRunSection={lastRunSection}
-      />
-      <ReportExporter results={scan.results} phase={scan.phase} />
+      {/* ── NMAP MODE ── */}
+      {reconMode === 'nmap' && (
+        <>
+          {/* Quick action buttons */}
+          {scan.target && (
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={() => runScan('whois', () => scan.runWhois(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-blue-700/50">
+                📋 WHOIS
+              </button>
+              <button onClick={() => runScan('dns', () => scan.runDnsEnum(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-purple-700/50">
+                🌐 DNS
+              </button>
+              <button onClick={() => runScan('subdomains', () => scan.runSubdomainEnum(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-yellow-700/50">
+                🌍 Subdomains
+              </button>
+              <button onClick={() => runScan('emails', () => scan.runEmailOsint(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-pink-700/50">
+                📧 Emails
+              </button>
+              <button onClick={() => runScan('nmap', () => scan.runNmapScan(scan.target, '-sS -T4 --top-ports 1000'))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-green-700/50">
+                🔍 Port Scan
+              </button>
+              <button onClick={() => runScan('ssl', () => scan.runSslScan(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-cyan-700/50">
+                🔒 SSL Cert
+              </button>
+              <button onClick={() => runScan('httpHeaders', () => scan.runHttpHeaders(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-indigo-700/50">
+                📡 HTTP Headers
+              </button>
+              <button onClick={() => runScan('waf', () => scan.runWafDetect(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-orange-700/50">
+                🛡️ WAF Detect
+              </button>
+              <button onClick={() => runScan('tech', () => scan.runTechDetect(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-teal-700/50">
+                ⚙️ Tech Detect
+              </button>
+              <button onClick={() => runScan('dirBrute', () => scan.runDirBrute(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-red-700/50">
+                📁 Dir Brute
+              </button>
+              <button onClick={() => runScan('serviceScan', () => scan.runServiceScan(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-emerald-700/50">
+                🔬 Service Scan
+              </button>
+              <button onClick={() => runScan('vulnScan', () => scan.runVulnScan(scan.target))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-rose-700/50">
+                💀 Vuln Scan
+              </button>
+              <button onClick={() => runScan('nmap', () => scan.runNmapScan(scan.target, '-sS -sV -T2 --top-ports 1000'))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-slate-500/50"
+                title="Stealth scan - slower, less likely to be detected">
+                🥷 Stealth Scan
+              </button>
+              <button onClick={() => runScan('nmap', () => scan.runNmapScan(scan.target, '-sS -sV -T5 -A --top-ports 1000'))}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-red-700/50"
+                title="Hyper aggressive - fast but noisy, includes OS detection & traceroute">
+                🔥 Hyper Scan
+              </button>
+              <button onClick={async () => {
+                const result = await window.api.runGeoIp(scan.target);
+                scan.appendOutput(`\n--- IP Geolocation ---\n${JSON.stringify(result, null, 2)}`);
+              }}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-lime-700/50"
+                title="Look up IP geolocation data">
+                🌍 GeoIP
+              </button>
+              <button onClick={async () => {
+                const result = await window.api.runReverseDns(scan.target);
+                scan.appendOutput(`\n--- Reverse DNS ---\n${JSON.stringify(result, null, 2)}`);
+              }}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-emerald-700/50"
+                title="Reverse DNS lookup for IP/hostname">
+                🔄 Reverse DNS
+              </button>
+              <button onClick={async () => {
+                const port = prompt('Port number:', '80');
+                if (!port) return;
+                const result = await window.api.runPortHealth(scan.target, parseInt(port));
+                scan.appendOutput(`\n--- Port Health (${port}) ---\n${JSON.stringify(result, null, 2)}`);
+              }}
+                className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-amber-700/50"
+                title="Check if a specific port is open">
+                ❤️ Port Health
+              </button>
+            </div>
+          )}
+
+          {scan.target && <KillChainBar chain={scan.killChain} />}
+          <ScanProgress
+            phase={scan.phase}
+            messages={scan.statusMessages}
+            output={scan.scanOutput}
+            collapsible={true}
+          />
+          <ResultsPanel
+            results={scan.results}
+            phase={scan.phase}
+            scanTasks={scan.scanTasks}
+            onSectionRender={handleSectionRender}
+            lastRunSection={lastRunSection}
+          />
+          <ReportExporter results={scan.results} phase={scan.phase} />
+        </>
+      )}
     </div>
   );
 }

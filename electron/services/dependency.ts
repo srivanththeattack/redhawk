@@ -311,7 +311,7 @@ export class DependencyChecker {
       // Check common install paths
       const nodePaths = [
         `${process.env.ProgramFiles}\\nodejs\\node.exe`,
-        `${process.env.ProgramFiles(x86)}\\nodejs\\node.exe`,
+        `${process.env['ProgramFiles(x86)']}\\nodejs\\node.exe`,
         `${process.env.LOCALAPPDATA}\\Programs\\nodejs\\node.exe`,
       ];
       for (const p of nodePaths) {
