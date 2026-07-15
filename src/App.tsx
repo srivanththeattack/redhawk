@@ -120,7 +120,10 @@ const TABS: TabDef[] = [
   { id: 'team', label: 'Team', icon: <TabIcon tabId="team" />, description: 'Team coordination — shared feed, findings, targets' },
 ];
 
-function StatusBar({ phase, target, scanTasks }: { phase: string; target: string; scanTasks: ScanTaskState }) {
+function StatusBar({ phase, target, scanTasks, depsStatus, onInstallDeps }: {
+  phase: string; target: string; scanTasks: ScanTaskState;
+  depsStatus: any; onInstallDeps?: () => void;
+}) {
   const [opName, setOpName] = React.useState<string | null>(null);
   const [opTargets, setOpTargets] = React.useState<number>(0);
   const [c2Running, setC2Running] = React.useState(false);
@@ -211,6 +214,33 @@ function StatusBar({ phase, target, scanTasks }: { phase: string; target: string
           <span className="text-gray-600 hidden sm:inline">C2</span>
           {c2Running && c2Agents > 0 && <span className="text-gray-500 text-[10px]">{c2Agents}</span>}
         </span>
+
+        {/* Dependency health */}
+        {depsStatus && (
+          <>
+            <span className="text-[10px] text-gray-700 select-none">|</span>
+            <button
+              onClick={onInstallDeps}
+              className="flex items-center gap-1 text-[10px] hover:text-gray-300 transition-colors"
+              title={(() => {
+                const missing = Object.entries(depsStatus)
+                  .filter(([k, v]: any) => k !== 'all' && !v.installed)
+                  .map(([k]) => k);
+                return missing.length > 0
+                  ? `Missing: ${missing.join(', ')}. Click to install.`
+                  : 'All dependencies OK';
+              })()}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${(depsStatus as any).all ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
+              <span className="text-gray-600 hidden sm:inline">Deps</span>
+              {!(depsStatus as any).all && (
+                <span className="text-amber-400 font-medium">
+                  {Object.entries(depsStatus).filter(([k, v]: any) => k !== 'all' && !v.installed).length}
+                </span>
+              )}
+            </button>
+          </>
+        )}
 
         <span className="text-[10px] text-gray-700 select-none">|</span>
         <span className="text-[10px] text-gray-700">For authorized testing only</span>
@@ -486,7 +516,15 @@ export default function App() {
       )}
 
       {/* ── STATUS BAR ── */}
-      {showStatusBar && <StatusBar phase={scan.phase} target={scan.target} scanTasks={scan.scanTasks} />}
+      {showStatusBar && (
+        <StatusBar
+          phase={scan.phase}
+          target={scan.target}
+          scanTasks={scan.scanTasks}
+          depsStatus={scan.depsStatus}
+          onInstallDeps={scan.depsStatus && !scan.depsStatus.all ? scan.installDeps : undefined}
+        />
+      )}
     </div>
   );
 }

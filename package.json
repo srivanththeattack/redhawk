@@ -1,6 +1,6 @@
 {
   "name": "redhawk",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "RedHawk — Offensive red teaming suite",
   "author": {
     "name": "srivanththeattack"
@@ -82,7 +82,8 @@
       "uninstallDisplayName": "RedHawk",
       "shortcutName": "RedHawk",
       "createDesktopShortcut": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "include": "installer-deps.nsh"
     },
     "asar": true,
     "asarUnpack": []

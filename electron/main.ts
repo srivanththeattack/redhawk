@@ -517,6 +517,19 @@ function registerIpcHandlers() {
     }
   });
 
+  // ── Maigret OSINT Username Search ──
+  ipcMain.handle('run-maigret', async (_event, username: string) => {
+    if (!username || !username.trim()) {
+      return { error: 'No username provided', username: '' };
+    }
+    try {
+      const result = await pythonRunner.runScript('maigret_lookup.py', [username.trim()]);
+      return result;
+    } catch (err: any) {
+      return { error: err.message, username };
+    }
+  });
+
   // ── Metasploit RPC ──
   ipcMain.handle('msf-connect', async (_event, host: string, port: number, password: string) => {
     try {

@@ -1,167 +1,409 @@
 <#
 .SYNOPSIS
-    RedHawk Dependency Installer
+    RedHawk Full Dependency Installer
 .DESCRIPTION
-    Checks for and installs required tools:
-    - Nmap (Windows)
-    - Python 3 (embedded)
-    - Required Python packages
+    Checks for and installs all required tools:
+    - Nmap (port scanning)
+    - Python 3 + pip
+    - Node.js (runtime)
+    - Maigret (username OSINT)
+    - Evilginx2 (phishing framework)
+    - Metasploit (exploitation framework)
+    - WSL (Windows Subsystem for Linux)
 #>
+
+param(
+    [switch]$Auto,        # Skip prompts, auto-install
+    [switch]$Silent       # Minimal output
+)
 
 $ErrorActionPreference = "Continue"
 $ScriptDir = Split-Path -Parent $PSScriptRoot
+$Results = @{}
+$AllOk = $true
 
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "     RedHawk Dependency Installer       " -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
+function Log {
+    param([string]$Message, [string]$Color = "White")
+    if (-not $Silent) {
+        Write-Host $Message -ForegroundColor $Color
+    }
+}
 
-$results = @{}
-
-# ── Admin Check ──
 function Test-Admin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-if (-not (Test-Admin)) {
-    Write-Host "[!] Not running as administrator. Some tools may not install." -ForegroundColor Yellow
-    Write-Host "[!] Right-click PowerShell and select 'Run as administrator' for best results." -ForegroundColor Yellow
-    Write-Host ""
+function Confirm-Step {
+    param([string]$Label)
+    if ($Auto) { return $true }
+    $response = Read-Host "    Install $Label? (y/n, default: y)"
+    return $response -ne "n"
 }
 
-# ── Nmap ──
-Write-Host "[*] Checking Nmap..." -ForegroundColor Yellow
-$nmapFound = $false
-$nmapPaths = @(
-    "nmap",
-    "C:\Program Files (x86)\Nmap\nmap.exe",
-    "C:\Program Files\Nmap\nmap.exe"
-)
+$isAdmin = Test-Admin
+Log "========================================" Cyan
+Log "     RedHawk Dependency Installer       " Cyan
+Log "========================================" Cyan
+Log "" 
+Log "Administrator: $isAdmin" Yellow
+if (-not $isAdmin) {
+    Log "[!] Some installers require admin rights." Yellow
+    Log "[!] Run as Administrator for full auto-install." Yellow
+    Log ""
+}
 
-foreach ($path in $nmapPaths) {
-    try {
-        $null = Get-Command $path -ErrorAction Stop
-        $nmapFound = $true
-        break
-    } catch {
-        continue
+# ──────────────────────────────────────────────
+# 1. Nmap
+# ──────────────────────────────────────────────
+Log "[1/7] Checking Nmap..." Yellow
+$nmapFound = $false
+try {
+    $null = Get-Command nmap -ErrorAction Stop
+    $version = nmap --version 2>&1 | Select-Object -First 1
+    Log "  [✓] Nmap found: $version" Green
+    $Results["nmap"] = @{ status = "installed" }
+    $nmapFound = $true
+} catch {
+    foreach ($p in @("C:\Program Files (x86)\Nmap\nmap.exe", "C:\Program Files\Nmap\nmap.exe")) {
+        if (Test-Path $p) {
+            Log "  [✓] Nmap found at: $p" Green
+            $Results["nmap"] = @{ status = "installed" }
+            $nmapFound = $true
+            break
+        }
     }
 }
 
-if ($nmapFound) {
-    $version = & $nmapPaths[0] --version 2>&1 | Select-Object -First 1
-    Write-Host "[✓] Nmap found: $version" -ForegroundColor Green
-    $results["nmap"] = @{ status = "installed" }
-} else {
-    Write-Host "[!] Nmap not found." -ForegroundColor Yellow
-    $installChoice = Read-Host "    Download and install Nmap? (y/n, default: y)"
-    if ($installChoice -ne "n") {
-        $nmapUrl = "https://nmap.org/dist/nmap-7.94-setup.exe"
-        $installer = "$env:TEMP\nmap-setup.exe"
-        Write-Host "    Downloading Nmap installer..." -ForegroundColor Yellow
+if (-not $nmapFound) {
+    Log "  [!] Nmap not found." Yellow
+    if (Confirm-Step "Nmap") {
+        $installer = "$env:TEMP\nmap-7.95-setup.exe"
+        $url = "https://nmap.org/dist/nmap-7.95-setup.exe"
         try {
-            Invoke-WebRequest -Uri $nmapUrl -OutFile $installer -UseBasicParsing
-            Write-Host "    Running Nmap installer (silent)..." -ForegroundColor Yellow
-            Start-Process -FilePath $installer -ArgumentList "/S" -Wait
-            Write-Host "[✓] Nmap installed." -ForegroundColor Green
-            $results["nmap"] = @{ status = "installed" }
+            Log "  [*] Downloading Nmap 7.95..." Yellow
+            Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+            Log "  [*] Installing silently..." Yellow
+            Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
+            Log "  [✓] Nmap installed." Green
+            $Results["nmap"] = @{ status = "installed" }
         } catch {
-            Write-Host "[✗] Failed to install Nmap: $_" -ForegroundColor Red
-            Write-Host "    Download manually from: https://nmap.org/download.html" -ForegroundColor Gray
-            $results["nmap"] = @{ status = "failed"; error = $_ }
+            Log "  [✗] Failed: $_" Red
+            $Results["nmap"] = @{ status = "failed"; error = $_ }
+            $AllOk = $false
         }
     } else {
-        $results["nmap"] = @{ status = "skipped" }
+        $Results["nmap"] = @{ status = "skipped" }
+        $AllOk = $false
     }
 }
 
-# ── Python ──
-Write-Host ""
-Write-Host "[*] Checking Python..." -ForegroundColor Yellow
+# ──────────────────────────────────────────────
+# 2. Python 3
+# ──────────────────────────────────────────────
+Log ""
+Log "[2/7] Checking Python..." Yellow
 $pythonFound = $false
+$pythonExe = "python"
 try {
-    $null = Get-Command python -ErrorAction Stop
-    $version = python --version 2>&1
-    if ($version -match "3\.\d+") {
+    $ver = python --version 2>&1
+    if ($ver -match "3\.\d+") {
+        Log "  [✓] $ver" Green
+        $Results["python"] = @{ status = "installed" }
         $pythonFound = $true
-        Write-Host "[✓] Python found: $version" -ForegroundColor Green
-        $results["python"] = @{ status = "installed" }
     }
-} catch {
-    # Check embedded
-    $embeddedPython = Join-Path $ScriptDir "python\python._embed\python.exe"
-    if (Test-Path $embeddedPython) {
+} catch {}
+
+if (-not $pythonFound) {
+    $embeddedPy = Join-Path $ScriptDir "python\python._embed\python.exe"
+    if (Test-Path $embeddedPy) {
+        Log "  [✓] Embedded Python found." Green
+        $pythonExe = $embeddedPy
+        $Results["python"] = @{ status = "installed" }
         $pythonFound = $true
-        Write-Host "[✓] Embedded Python found." -ForegroundColor Green
-        $results["python"] = @{ status = "installed" }
     }
 }
 
 if (-not $pythonFound) {
-    Write-Host "[!] Python not found." -ForegroundColor Yellow
-    $installChoice = Read-Host "    Install embedded Python? (y/n, default: y)"
-    if ($installChoice -ne "n") {
-        $downloadScript = Join-Path $ScriptDir "scripts\download-python.ps1"
-        if (Test-Path $downloadScript) {
-            Write-Host "    Running Python download script..." -ForegroundColor Yellow
-            & $downloadScript
-            $results["python"] = @{ status = "installed" }
+    Log "  [!] Python not found." Yellow
+    if (Confirm-Step "Python 3") {
+        $dlScript = Join-Path $ScriptDir "scripts\download-python.ps1"
+        if (Test-Path $dlScript) {
+            Log "  [*] Running Python download script..." Yellow
+            & $dlScript
+            if (Test-Path $embeddedPy) {
+                $pythonExe = $embeddedPy
+                Log "  [✓] Python installed." Green
+                $Results["python"] = @{ status = "installed" }
+                $pythonFound = $true
+            } else {
+                Log "  [✗] Python install failed." Red
+                $Results["python"] = @{ status = "failed" }
+                $AllOk = $false
+            }
         } else {
-            Write-Host "    Download script not found at: $downloadScript" -ForegroundColor Red
-            $results["python"] = @{ status = "failed"; error = "Script not found" }
+            Log "  [✗] Download script missing." Red
+            $Results["python"] = @{ status = "failed"; error = "Script not found" }
+            $AllOk = $false
         }
     } else {
-        $results["python"] = @{ status = "skipped" }
+        $Results["python"] = @{ status = "skipped" }
+        $AllOk = $false
     }
 }
 
-# ── Python Packages ──
-Write-Host ""
-Write-Host "[*] Checking Python packages..." -ForegroundColor Yellow
+# ──────────────────────────────────────────────
+# 3. pip packages (including maigret)
+# ──────────────────────────────────────────────
+Log ""
+Log "[3/7] Installing Python packages..." Yellow
 $requirementsFile = Join-Path $ScriptDir "python\requirements.txt"
-if (Test-Path $requirementsFile) {
+if (Test-Path $requirementsFile -and $pythonFound) {
     try {
-        $pythonExe = if (Test-Path (Join-Path $ScriptDir "python\python._embed\python.exe")) {
-            Join-Path $ScriptDir "python\python._embed\python.exe"
-        } else {
-            "python"
-        }
-        
-        Write-Host "    Installing Python packages..." -ForegroundColor Yellow
+        Log "  [*] Installing packages from requirements.txt..." Yellow
         & $pythonExe -m pip install -r $requirementsFile --quiet 2>&1 | Out-Null
-        Write-Host "[✓] Python packages installed." -ForegroundColor Green
-        $results["packages"] = @{ status = "installed" }
+        Log "  [✓] Python packages installed (includes maigret)." Green
+        $Results["packages"] = @{ status = "installed" }
+
+        # Verify maigret specifically
+        try {
+            $mg = & $pythonExe -m pip show maigret 2>&1
+            if ($mg -match "Version:") {
+                Log "  [✓] Maigret verified: $($mg -match 'Version:\s*(.+)' | Out-Null; $Matches[1])" Green
+            }
+        } catch {}
     } catch {
-        Write-Host "[✗] Failed to install packages: $_" -ForegroundColor Red
-        $results["packages"] = @{ status = "failed"; error = $_ }
+        Log "  [✗] Package install failed: $_" Red
+        $Results["packages"] = @{ status = "failed"; error = $_ }
+        $AllOk = $false
     }
-}
-
-# ── Summary ──
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "            Installation Summary         " -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-$allOk = $true
-foreach ($key in $results.Keys) {
-    $r = $results[$key]
-    if ($r.status -eq "installed") {
-        Write-Host "  [✓] $key - OK" -ForegroundColor Green
-    } elseif ($r.status -eq "skipped") {
-        Write-Host "  [-] $key - Skipped" -ForegroundColor Yellow
-        $allOk = $false
-    } else {
-        Write-Host "  [✗] $key - Failed" -ForegroundColor Red
-        $allOk = $false
-    }
-}
-Write-Host ""
-
-if ($allOk) {
-    Write-Host "All dependencies ready! Launch RedHawk to begin." -ForegroundColor Green
 } else {
-    Write-Host "Some dependencies are missing. RedHawk may not work fully." -ForegroundColor Yellow
-    Write-Host "Run this script again or install missing tools manually." -ForegroundColor Yellow
+    Log "  [-] Skipped (Python not available)." Yellow
+    $Results["packages"] = @{ status = "skipped" }
 }
+
+# ──────────────────────────────────────────────
+# 4. Node.js
+# ──────────────────────────────────────────────
+Log ""
+Log "[4/7] Checking Node.js..." Yellow
+$nodeFound = $false
+try {
+    $ver = node --version 2>&1
+    Log "  [✓] Node.js found: $ver" Green
+    $Results["nodejs"] = @{ status = "installed" }
+    $nodeFound = $true
+} catch {}
+
+if (-not $nodeFound) {
+    foreach ($p in @("${env:ProgramFiles}\nodejs\node.exe", "${env:ProgramFiles(x86)}\nodejs\node.exe", "${env:LOCALAPPDATA}\Programs\nodejs\node.exe")) {
+        if (Test-Path $p) {
+            Log "  [✓] Node.js found at: $p" Green
+            $Results["nodejs"] = @{ status = "installed" }
+            $nodeFound = $true
+            break
+        }
+    }
+}
+
+if (-not $nodeFound) {
+    Log "  [!] Node.js not found." Yellow
+    if (Confirm-Step "Node.js") {
+        try {
+            Log "  [*] Attempting winget install..." Yellow
+            winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements 2>&1 | Out-Null
+            Log "  [✓] Node.js installed via winget." Green
+            $Results["nodejs"] = @{ status = "installed" }
+        } catch {
+            try {
+                Log "  [*] Attempting Chocolatey install..." Yellow
+                choco install nodejs-lts -y 2>&1 | Out-Null
+                Log "  [✓] Node.js installed via Chocolatey." Green
+                $Results["nodejs"] = @{ status = "installed" }
+            } catch {
+                Log "  [✗] Auto-install failed. Download from: https://nodejs.org/" Red
+                Start-Process "https://nodejs.org/en/download/"
+                $Results["nodejs"] = @{ status = "failed" }
+                $AllOk = $false
+            }
+        }
+    } else {
+        $Results["nodejs"] = @{ status = "skipped" }
+        $AllOk = $false
+    }
+}
+
+# ──────────────────────────────────────────────
+# 5. Evilginx2
+# ──────────────────────────────────────────────
+Log ""
+Log "[5/7] Checking Evilginx2..." Yellow
+$evilginxFound = $false
+try {
+    $null = Get-Command evilginx2 -ErrorAction Stop
+    Log "  [✓] Evilginx2 found on PATH." Green
+    $Results["evilginx"] = @{ status = "installed" }
+    $evilginxFound = $true
+} catch {}
+
+if (-not $evilginxFound) {
+    $evilginxPaths = @(
+        "${env:LOCALAPPDATA}\RedHawk\tools\evilginx2.exe",
+        "${env:LOCALAPPDATA}\Programs\evilginx2\evilginx2.exe",
+        "${env:ProgramFiles}\evilginx2\evilginx2.exe",
+        "$ScriptDir\tools\evilginx2\evilginx2.exe",
+        "C:\tools\evilginx2\evilginx2.exe"
+    )
+    foreach ($p in $evilginxPaths) {
+        if (Test-Path $p) {
+            Log "  [✓] Evilginx2 found at: $p" Green
+            $Results["evilginx"] = @{ status = "installed" }
+            $evilginxFound = $true
+            break
+        }
+    }
+}
+
+if (-not $evilginxFound) {
+    Log "  [!] Evilginx2 not found." Yellow
+    if (Confirm-Step "Evilginx2") {
+        $installScript = Join-Path $ScriptDir "scripts\install-evilginx.ps1"
+        if (Test-Path $installScript) {
+            Log "  [*] Running Evilginx2 installer..." Yellow
+            & $installScript
+            Log "  [✓] Evilginx2 installation initiated." Green
+            $Results["evilginx"] = @{ status = "installed" }
+        } else {
+            Log "  [✗] Installer script not found." Red
+            $Results["evilginx"] = @{ status = "failed"; error = "Script not found" }
+            $AllOk = $false
+        }
+    } else {
+        $Results["evilginx"] = @{ status = "skipped" }
+        $AllOk = $false
+    }
+}
+
+# ──────────────────────────────────────────────
+# 6. Metasploit
+# ──────────────────────────────────────────────
+Log ""
+Log "[6/7] Checking Metasploit..." Yellow
+$msfFound = $false
+$msfPaths = @(
+    "C:\metasploit\MSP\msfrpcd.exe",
+    "${env:ProgramFiles}\Metasploit\MSP\msfrpcd.exe",
+    "${env:LOCALAPPDATA}\Metasploit\msfrpcd.exe"
+)
+foreach ($p in $msfPaths) {
+    if (Test-Path $p) {
+        Log "  [✓] Metasploit found at: $p" Green
+        $Results["metasploit"] = @{ status = "installed" }
+        $msfFound = $true
+        break
+    }
+}
+
+if (-not $msfFound) {
+    Log "  [!] Metasploit not found." Yellow
+    if (Confirm-Step "Metasploit") {
+        $installScript = Join-Path $ScriptDir "scripts\install-metasploit.ps1"
+        if (Test-Path $installScript) {
+            Log "  [*] Running Metasploit installer..." Yellow
+            & $installScript
+            Log "  [✓] Metasploit installation initiated." Green
+            $Results["metasploit"] = @{ status = "installed" }
+        } else {
+            Log "  [✗] Installer script not found." Red
+            $Results["metasploit"] = @{ status = "failed"; error = "Script not found" }
+            $AllOk = $false
+        }
+    } else {
+        $Results["metasploit"] = @{ status = "skipped" }
+        $AllOk = $false
+    }
+}
+
+# ──────────────────────────────────────────────
+# 7. WSL
+# ──────────────────────────────────────────────
+Log ""
+Log "[7/7] Checking WSL..." Yellow
+$wslFound = $false
+$wslPath = "${env:SystemRoot}\System32\wsl.exe"
+$wslAlt = "${env:SystemRoot}\Sysnative\wsl.exe"
+if (Test-Path $wslPath) {
+    Log "  [✓] WSL binary found." Green
+    try {
+        $distros = wsl -l -q 2>&1 | Where-Object { $_ -match '\S' }
+        if ($distros) {
+            Log "  [✓] WSL distros: $($distros -join ', ')" Green
+        } else {
+            Log "  [-] WSL installed, no distros. Run 'wsl --install -d Ubuntu'." Yellow
+        }
+    } catch {
+        Log "  [-] WSL installed but distro list unavailable." Yellow
+    }
+    $Results["wsl"] = @{ status = "installed" }
+    $wslFound = $true
+} elseif (Test-Path $wslAlt) {
+    Log "  [✓] WSL binary (Sysnative) found." Green
+    $Results["wsl"] = @{ status = "installed" }
+    $wslFound = $true
+}
+
+if (-not $wslFound) {
+    Log "  [!] WSL not found." Yellow
+    if (Confirm-Step "WSL") {
+        try {
+            Log "  [*] Installing WSL..." Yellow
+            wsl --install 2>&1 | Out-Null
+            Log "  [✓] WSL installation initiated. Reboot may be required." Green
+            $Results["wsl"] = @{ status = "installed" }
+        } catch {
+            Log "  [✗] Failed: $_" Red
+            Log "  [*] Run 'wsl --install' as Administrator manually." Yellow
+            $Results["wsl"] = @{ status = "failed"; error = $_ }
+            $AllOk = $false
+        }
+    } else {
+        $Results["wsl"] = @{ status = "skipped" }
+        $AllOk = $false
+    }
+}
+
+# ──────────────────────────────────────────────
+# Summary
+# ──────────────────────────────────────────────
+Log ""
+Log "========================================" Cyan
+Log "          Installation Summary           " Cyan
+Log "========================================" Cyan
+foreach ($key in $Results.Keys) {
+    $r = $Results[$key]
+    $icon = switch ($r.status) {
+        "installed" { " [✓]" }
+        "skipped"   { " [-]" }
+        "failed"    { " [✗]" }
+        default     { " [?]" }
+    }
+    $color = switch ($r.status) {
+        "installed" { "Green" }
+        "skipped"   { "Yellow" }
+        "failed"    { "Red" }
+        default     { "Gray" }
+    }
+    Log ("  {0,-8} {1}" -f $icon, $key) $color
+}
+
+Log ""
+if ($AllOk -and ($Results.Values.status -notcontains "skipped" -and $Results.Values.status -notcontains "failed")) {
+    Log "  All dependencies ready! Launch RedHawk." Green
+} elseif ($AllOk) {
+    Log "  Most dependencies ready. Some were skipped." Yellow
+} else {
+    Log "  Some dependencies are missing. RedHawk may not work fully." Yellow
+    Log "  Run this script again or install missing tools manually." Yellow
+}
+Log ""

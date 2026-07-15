@@ -226,6 +226,15 @@ export function ReconContent({ scan }: ReconContentProps) {
             title="Check if a specific port is open">
             ❤️ Port Health
           </button>
+          <button onClick={async () => {
+            const username = prompt('Username to search:', '');
+            if (!username) return;
+            scan.runMaigret(username);
+          }}
+            className="btn-ghost text-xs py-1.5 px-2.5 border border-midnight-700/50 hover:border-fuchsia-700/50"
+            title="OSINT username search across hundreds of social networks">
+            🔍 Maigret
+          </button>
         </div>
       )}
 

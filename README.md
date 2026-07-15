@@ -32,7 +32,7 @@
 **Quickest way** — grab the latest installer from the [Releases page](https://github.com/srivanththeattack/redhawk/releases):
 
 ```
-RedHawk Setup 0.1.5.exe → run it → done
+RedHawk Setup 0.1.6.exe → run it → done
 ```
 
 **From source:**
@@ -52,10 +52,13 @@ RedHawk handles most of these automatically, but here's what's needed under the 
 
 | Dependency | How it's handled |
 |---|---|
-| **Nmap** | Auto-installed via "Install Deps" button in the header |
+| **Nmap** | Auto-installed via NSIS installer or "Install Deps" button |
 | **Python 3.12** | Embedded — downloaded on first launch |
+| **Node.js** | Auto-installed via NSIS installer or "Install Deps" |
+| **Maigret** (Recon tab) | Auto-installed via `pip install maigret` |
 | **Metasploit** (Exploit tab) | Needs `msfrpcd` running in WSL: `msfrpc -P redhawk -S -f -j` |
-| **Evilginx2** (Phish tab) | Install in WSL: [instructions](https://github.com/kgretzky/evilginx2) |
+| **Evilginx2** (Phish tab) | Install in WSL or via NSIS installer |
+| **WSL** | Auto-installed by NSIS installer if missing |
 
 ---
 
@@ -72,11 +75,11 @@ RedHawk handles most of these automatically, but here's what's needed under the 
 
 ## What's inside
 
-# Modules
+## Modules
 
 | Module | Highlights |
 |---------|------------|
-| 🛰 **Recon** | WHOIS, DNS, Subdomains, Email OSINT, HTTP Headers, GeoIP, Reverse DNS, Nmap integration, Port & Service Discovery |
+| 🛰 **Recon** | WHOIS, DNS, Subdomains, Email OSINT, HTTP Headers, GeoIP, Reverse DNS, Nmap integration, Port & Service Discovery, **Maigret** username OSINT |
 | 💥 **Exploit** | Metasploit RPC integration, exploit search, payload generation, session management |
 | 🎣 **Phish** | Evilginx2 integration, campaign management, phishlet support, credential capture |
 | 💀 **Payload** | Reverse shell generation, shellcode generation, payload import, multiple obfuscation methods |

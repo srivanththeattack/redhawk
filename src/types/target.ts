@@ -97,6 +97,21 @@ export interface DirBruteResult {
   total: number;
 }
 
+export interface MaigretSite {
+  url: string;
+  username: string;
+  status: string;
+}
+
+export interface MaigretResult {
+  username: string;
+  total_sites_checked: number;
+  sites_found_count: number;
+  sites: Record<string, MaigretSite>;
+  error?: string;
+  raw?: string;
+}
+
 export interface ScanResults {
   target: string;
   timestamp: string;
@@ -112,6 +127,7 @@ export interface ScanResults {
   dirBrute?: DirBruteResult | { error: string };
   serviceScan?: NmapResult | { error: string };
   vulnScan?: NmapResult | { error: string };
+  maigret?: MaigretResult | { error: string };
   error?: string;
 }
 
@@ -126,6 +142,8 @@ export interface DepsStatus {
   nmap: DepDetail;
   python: DepDetail;
   pip: DepDetail;
+  nodejs: DepDetail;
+  maigret: DepDetail;
   metasploit: DepDetail;
   msfRunning: DepDetail;
   evilginx: DepDetail;

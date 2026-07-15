@@ -25,6 +25,8 @@ export class DependencyChecker {
     nmap: DepDetail;
     python: DepDetail;
     pip: DepDetail;
+    nodejs: DepDetail;
+    maigret: DepDetail;
     metasploit: DepDetail;
     msfRunning: DepDetail;
     evilginx: DepDetail;
@@ -34,6 +36,8 @@ export class DependencyChecker {
     const nmap = await this.checkNmap();
     const python = await this.checkPython();
     const pip = await this.checkPip();
+    const nodejs = await this.checkNodejs();
+    const maigret = await this.checkMaigret();
     const metasploit = await this.checkMetasploit();
     const msfRunning = await this.checkMsfRunning();
     const evilginx = await this.checkEvilginx();
@@ -43,11 +47,13 @@ export class DependencyChecker {
       nmap,
       python,
       pip,
+      nodejs,
+      maigret,
       metasploit,
       msfRunning,
       evilginx,
       wsl,
-      all: nmap.installed && python.installed && pip.installed,
+      all: nmap.installed && python.installed && pip.installed && nodejs.installed,
     };
   }
 
@@ -100,6 +106,7 @@ export class DependencyChecker {
   async installAll(): Promise<{ success: boolean; results: Record<string, any> }> {
     const results: Record<string, any> = {};
 
+    // Nmap
     const nmapOk = await this.checkNmap();
     if (!nmapOk.installed) {
       results.nmap = await this.installNmap();
@@ -107,6 +114,7 @@ export class DependencyChecker {
       results.nmap = { status: 'already_installed', detail: nmapOk.detail };
     }
 
+    // Python
     const pythonOk = await this.checkPython();
     if (!pythonOk.installed) {
       results.python = await this.installPython();
@@ -114,14 +122,31 @@ export class DependencyChecker {
       results.python = { status: 'already_installed', version: pythonOk.version };
     }
 
+    // Pip packages (includes maigret now)
     const pipOk = await this.checkPip();
-    if (!pipOk.installed) {
+    if (pipOk.installed) {
       results.pip = await this.installPipPackages();
     } else {
-      results.pip = { status: 'already_installed', version: pipOk.version };
+      results.pip = { status: 'skipped', detail: 'pip not available, cannot install packages' };
     }
 
-    // Attempt to install Metasploit if missing (via script)
+    // Node.js
+    const nodeOk = await this.checkNodejs();
+    if (!nodeOk.installed) {
+      results.nodejs = await this.installNodejs();
+    } else {
+      results.nodejs = { status: 'already_installed', version: nodeOk.version };
+    }
+
+    // Maigret (Python package)
+    const maigretOk = await this.checkMaigret();
+    if (!maigretOk.installed) {
+      results.maigret = await this.installMaigret();
+    } else {
+      results.maigret = { status: 'already_installed', version: maigretOk.version };
+    }
+
+    // Metasploit (via script)
     const msfOk = await this.checkMetasploit();
     if (!msfOk.installed) {
       results.metasploit = await this.installMetasploit();
@@ -129,12 +154,20 @@ export class DependencyChecker {
       results.metasploit = { status: 'already_installed', path: msfOk.path };
     }
 
-    // Attempt to install Evilginx if missing (via script)
+    // Evilginx (via script or pip)
     const evilginxOk = await this.checkEvilginx();
     if (!evilginxOk.installed) {
       results.evilginx = await this.installEvilginx();
     } else {
       results.evilginx = { status: 'already_installed', path: evilginxOk.path };
+    }
+
+    // WSL
+    const wslOk = await this.checkWsl();
+    if (!wslOk.installed) {
+      results.wsl = await this.installWsl();
+    } else {
+      results.wsl = { status: 'already_installed', detail: wslOk.detail };
     }
 
     const allOk = Object.values(results).every(
@@ -249,6 +282,93 @@ export class DependencyChecker {
     }
 
     return { installed: false, detail: 'Evilginx2 not found on PATH, in standard paths, or in WSL' };
+  }
+
+  private async checkMaigret(): Promise<DepDetail> {
+    try {
+      const result = execSync('python -m pip show maigret 2>&1', { stdio: 'pipe', timeout: 3000, shell: true as any });
+      const output = result.toString().trim();
+      const versionMatch = output.match(/^Version:\s*(.+)$/m);
+      const version = versionMatch ? versionMatch[1] : 'unknown';
+      return { installed: true, version, detail: 'Maigret Python package installed' };
+    } catch {
+      // Also check if maigret CLI is directly available
+      try {
+        const result = execSync('maigret --help 2>&1', { stdio: 'pipe', timeout: 3000, shell: true as any });
+        return { installed: true, version: 'unknown', detail: 'maigret CLI found on PATH' };
+      } catch {
+        return { installed: false, detail: 'Maigret not installed. Run: pip install maigret' };
+      }
+    }
+  }
+
+  private async checkNodejs(): Promise<DepDetail> {
+    try {
+      const result = execSync('node --version', { stdio: 'pipe', timeout: 3000, shell: true as any });
+      const version = result.toString().trim();
+      return { installed: true, version, detail: 'Node.js found on PATH' };
+    } catch {
+      // Check common install paths
+      const nodePaths = [
+        `${process.env.ProgramFiles}\\nodejs\\node.exe`,
+        `${process.env.ProgramFiles(x86)}\\nodejs\\node.exe`,
+        `${process.env.LOCALAPPDATA}\\Programs\\nodejs\\node.exe`,
+      ];
+      for (const p of nodePaths) {
+        if (fs.existsSync(p)) {
+          try {
+            const ver = execSync(`"${p}" --version`, { timeout: 3000, shell: true as any }).toString().trim();
+            return { installed: true, path: p, version: ver, detail: 'Found in Program Files' };
+          } catch {
+            return { installed: true, path: p, detail: 'Found in Program Files (version unknown)' };
+          }
+        }
+      }
+      return { installed: false, detail: 'Node.js not found. Download from https://nodejs.org' };
+    }
+  }
+
+  private async installMaigret(): Promise<{ success: boolean; message: string }> {
+    try {
+      execSync('python -m pip install maigret --quiet', { timeout: 120000, shell: true as any });
+      // Verify installation
+      const check = await this.checkMaigret();
+      if (check.installed) {
+        return { success: true, message: `Maigret installed successfully (${check.version || 'unknown version'})` };
+      }
+      return { success: false, message: 'Maigret pip install completed but verification failed' };
+    } catch (err: any) {
+      return { success: false, message: `Failed to install maigret: ${err.message}` };
+    }
+  }
+
+  private async installNodejs(): Promise<{ success: boolean; message: string }> {
+    // Try to download and install Node.js LTS silently via choco or direct download
+    try {
+      // First try winget (built-in Windows package manager)
+      execSync('winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements', { timeout: 120000, shell: true as any });
+      return { success: true, message: 'Node.js LTS installed via winget' };
+    } catch {
+      try {
+        // Fallback: try chocolatey
+        execSync('choco install nodejs-lts -y', { timeout: 120000, shell: true as any });
+        return { success: true, message: 'Node.js LTS installed via Chocolatey' };
+      } catch {
+        // Last resort: open download page
+        const { shell } = require('electron');
+        shell.openExternal('https://nodejs.org/en/download/');
+        return { success: false, message: 'Could not auto-install Node.js. Download page opened.' };
+      }
+    }
+  }
+
+  private async installWsl(): Promise<{ success: boolean; message: string }> {
+    try {
+      execSync('wsl --install', { timeout: 300000, shell: true as any });
+      return { success: true, message: 'WSL installation initiated. You may need to reboot.' };
+    } catch (err: any) {
+      return { success: false, message: `Failed to install WSL: ${err.message}. Run 'wsl --install' as Administrator.` };
+    }
   }
 
   private async checkNmap(): Promise<DepDetail> {

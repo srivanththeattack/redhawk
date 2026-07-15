@@ -2,3 +2,4 @@ python-whois==0.9.5
 dnspython==2.6.1
 requests==2.32.3
 urllib3==2.2.2
+maigret==1.0.0

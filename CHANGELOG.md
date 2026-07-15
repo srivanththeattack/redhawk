@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.1.6] — 2026-07-15
+
+### Added
+
+#### Maigret OSINT Reconnaissance
+- **New scan type: Maigret username search** — enter any username and search across hundreds of social networks and websites
+- Runs maigret's full `--all` enumeration with structured JSON results (sites found, URLs, status)
+- Full scan pipeline integration: task status tracking, Zustand state, results panel support
+- Maigret installed automatically via `pip install maigret` (added to `requirements.txt`)
+- Dedicated **Maigret** button in Recon tab (prompts for username, styled with fuchsia accent)
+
+#### Full Dependency Auto-Installer (7 tools)
+- **Nmap** — silent installer download from nmap.org
+- **Python 3** — embedded runtime via download script
+- **Node.js** — winget → Chocolatey → download page fallback
+- **Maigret** — `pip install maigret` via requirements.txt
+- **Evilginx2** — WSL-aware installer script
+- **Metasploit** — standard path detection + installer script
+- **WSL** — `wsl --install` with automatic detection
+
+#### Live Dependency Health in StatusBar
+- New dependency indicator in the footer — green dot when all tools present, pulsing amber dot when missing
+- Click the indicator to auto-install all missing dependencies
+- Shows count of missing tools at a glance
+
+#### NSIS Installer Dependency Check
+- During Windows installation, prompts user: *"Check and install missing tools now?"*
+- Runs full dependency check in silent mode as part of setup
+- Feedback shown in the installer's detail log
+
+### Changed
+- **install-deps.ps1** completely rewritten — now covers all 7 tools with admin detection, per-tool confirmation, and winget/choco/fallback chains
+- **DependencyChecker.installAll()** now installs node.js, maigret, and WSL in addition to existing tools
+- **Requirements.txt** includes `maigret==1.0.0` for automatic pip installation
+- **package.json** version bumped to 0.1.6
+
+---
+
 ## [0.1.5] — 2026-07-14
 
 ### Added
@@ -267,6 +305,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+[0.1.6]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.6
 [0.1.5]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.5
 [0.1.4]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.4
 [0.1.3]: https://github.com/srivanththeattack/redhawk/releases/tag/v0.1.3
