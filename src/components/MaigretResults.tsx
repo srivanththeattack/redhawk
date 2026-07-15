@@ -14,6 +14,7 @@ export function MaigretResults({ data }: MaigretResultsProps) {
 
   // Error state
   if ('error' in data && data.error) {
+    const errData = data as Record<string, any>;
     return (
       <div className="card border-redhawk-700/50 bg-redhawk-900/10">
         <div className="card-header text-redhawk-400 flex items-center gap-2">
@@ -23,7 +24,13 @@ export function MaigretResults({ data }: MaigretResultsProps) {
           </svg>
           Maigret Search Error
         </div>
-        <p className="text-sm text-redhawk-300 mt-2">{data.error}</p>
+        <p className="text-sm text-redhawk-300 mt-2 font-mono text-xs">{String(data.error)}</p>
+        {errData._stderr && (
+          <details className="mt-2">
+            <summary className="text-[10px] text-gray-500 cursor-pointer hover:text-gray-400">Diagnostic output</summary>
+            <pre className="text-[10px] text-gray-500 mt-1 max-h-32 overflow-auto whitespace-pre-wrap">{errData._stderr}</pre>
+          </details>
+        )}
       </div>
     );
   }

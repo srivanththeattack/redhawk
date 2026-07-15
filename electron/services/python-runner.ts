@@ -29,8 +29,12 @@ export class PythonRunner {
 
     return new Promise((resolve) => {
       // Use shell: false to avoid path-with-spaces being split by cmd.exe
+      // Set PYTHONIOENCODING so Python scripts use UTF-8 for stdout (fixes UnicodeEncodeError
+      // on Windows cp1252 consoles when printing special chars like ♥ in banners).
+      const env = { ...process.env, PYTHONIOENCODING: 'utf-8' };
       const proc = spawn(this.pythonPath, [scriptPath, ...args], {
         shell: false,
+        env,
         // Note: no timeout here — the Python wrapper handles its own timeout internally.
         // Node.js spawn timeout would kill the process prematurely for long-running tools like maigret.
       });

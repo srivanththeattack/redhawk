@@ -33,21 +33,20 @@ def main():
         env = os.environ.copy()
         env['PYTHONIOENCODING'] = 'utf-8'
 
-        # Run maigret with proper flags for v0.6.3+
-        # -a = all sites, --no-color = no ANSI, --no-progressbar = clean output
-        # -J simple = JSON report, --folderoutput = output dir
-        # --dns-resolver threaded = works better on Windows
+        # Build the maigret command
+        maigret_args = [
+            sys.executable, '-m', 'maigret',
+            username,
+            '-a',
+            '--no-color',
+            '--no-progressbar',
+            '--dns-resolver', 'threaded',
+            '-J', 'simple',
+            '--folderoutput', tmpdir,
+        ]
+
         result = subprocess.run(
-            [
-                sys.executable, '-m', 'maigret',
-                username,
-                '-a',
-                '--no-color',
-                '--no-progressbar',
-                '--dns-resolver', 'threaded',
-                '-J', 'simple',
-                '--folderoutput', tmpdir,
-            ],
+            maigret_args,
             capture_output=True,
             text=True,
             encoding='utf-8',
@@ -56,12 +55,30 @@ def main():
             env=env,
         )
 
+        # If maigret exited with non-zero code, report it
+        if result.returncode != 0:
+            stderr_info = result.stderr.strip() if result.stderr else ''
+            stdout_info = result.stdout.strip() if result.stdout else ''
+            error_msg = f'Maigret exited with code {result.returncode}'
+            if stderr_info:
+                # Extract the most useful part of the error
+                lines = stderr_info.split('\n')
+                useful = [l for l in lines if 'Error' in l or 'error' in l or 'Traceback' in l or 'File' in l]
+                if useful:
+                    error_msg += ': ' + ' '.join(useful[:3])
+            print(json.dumps({
+                'error': error_msg,
+                'username': username,
+                '_stderr': stderr_info[:500],
+                '_stdout': stdout_info[:500],
+            }, ensure_ascii=False))
+            return
+
         # Find the JSON report file
         json_files = glob.glob(os.path.join(tmpdir, '*simple*.json'))
         if not json_files:
             json_files = glob.glob(os.path.join(tmpdir, '*.json'))
             if not json_files:
-                # Try username-based filename patterns
                 json_files = glob.glob(os.path.join(tmpdir, f'*{username}*.json'))
 
         raw_data = {}
@@ -69,7 +86,7 @@ def main():
             try:
                 with open(json_files[0], 'r', encoding='utf-8') as f:
                     raw_data = json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
+            except (json.JSONDecodeError, IOError):
                 raw_data = {}
 
         # Parse the JSON report into our simplified format
@@ -91,9 +108,8 @@ def main():
                             'status': status.get('status', 'claimed'),
                         }
 
-        # If raw_data wasn't useful, fall back to parsing the console output
+        # If raw_data wasn't useful, fall back to parsing console output
         if not sites_found and result.stdout:
-            # Try to extract results from the text output
             stdout_str = result.stdout if isinstance(result.stdout, str) else result.stdout.decode('utf-8', errors='replace')
             for line in stdout_str.split('\n'):
                 match = re.match(r'^\[\+\] (\S+):\s*(\S+)', line)
