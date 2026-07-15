@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
+import type { ITheme } from 'xterm';
 import 'xterm/css/xterm.css';
 
 const TERMINAL_HEIGHT_KEY = 'redhawk_terminal_height';
@@ -11,6 +12,56 @@ const MAX_HEIGHT = 600;
 interface TerminalPanelProps {
   open: boolean;
   onToggle: () => void;
+}
+
+/**
+ * Build an xterm theme by reading the app's CSS custom properties.
+ * Falls back to a solid dark palette if variables aren't set.
+ */
+function getTerminalTheme(): ITheme {
+  const root = document.documentElement;
+  const style = getComputedStyle(root);
+
+  const read = (varName: string, fallback: string) => {
+    const val = style.getPropertyValue(varName).trim();
+    return val || fallback;
+  };
+
+  const bg    = read('--theme-bg-primary', '#0b0e1a');
+  const fg    = read('--theme-text-primary', '#d1d5db');
+  const accent = read('--theme-accent', '#ff4455');
+  const err   = read('--theme-error', '#ef4444');
+  const ok    = read('--theme-success', '#34d399');
+  const warn  = read('--theme-warning', '#fbbf24');
+
+  return {
+    background: bg,
+    foreground: fg,
+    cursor: accent,
+    cursorAccent: bg,
+    selectionBackground: accent + '35',
+    selectionInactiveBackground: accent + '1a',
+
+    // Standard ANSI colours — the first 8 use theme colours where they fit
+    black: '#1e1e2e',
+    red: err,
+    green: ok,
+    yellow: warn,
+    blue: '#7aa2f7',
+    magenta: '#bb9af7',
+    cyan: '#7dcfff',
+    white: fg,
+
+    // Bright variants — slightly lighter
+    brightBlack: '#3b4261',
+    brightRed: err + 'cc',
+    brightGreen: ok + 'cc',
+    brightYellow: warn + 'cc',
+    brightBlue: '#89b4fa',
+    brightMagenta: '#cba6f7',
+    brightCyan: '#89dceb',
+    brightWhite: '#e2e8f0',
+  };
 }
 
 export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
@@ -29,41 +80,61 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
   const [ptyReady, setPtyReady] = useState(false);
   const ptyReadyRef = useRef(false);
 
-  // Keep the ref in sync
   useEffect(() => {
     ptyReadyRef.current = ptyReady;
   }, [ptyReady]);
 
-  // ── Resize dragging state ──
-  const draggingRef = useRef(false);
-  const startYRef = useRef(0);
-  const startHeightRef = useRef(0);
-
+  // ── Resize dragging ──
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    draggingRef.current = true;
-    startYRef.current = e.clientY;
-    startHeightRef.current = height;
+    const startY = e.clientY;
+    const startH = height;
 
     const onMove = (ev: MouseEvent) => {
-      if (!draggingRef.current) return;
-      const delta = startYRef.current - ev.clientY;
-      const newHeight = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, startHeightRef.current + delta));
-      setHeight(newHeight);
+      const delta = startY - ev.clientY;
+      setHeight(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, startH + delta)));
     };
 
     const onUp = () => {
-      draggingRef.current = false;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      try { localStorage.setItem(TERMINAL_HEIGHT_KEY, String(startHeightRef.current)); } catch {}
-      // Refit terminal after resize
+      try { localStorage.setItem(TERMINAL_HEIGHT_KEY, String(height)); } catch {}
       setTimeout(() => fitAddonRef.current?.fit(), 50);
     };
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }, [height]);
+
+  // ── Watch for live theme changes & apply to xterm ──
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+
+    const updateTheme = () => {
+      try { term.setOption('theme', getTerminalTheme()); } catch {}
+    };
+
+    // Observe data-theme attribute changes on <html>
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes' && m.attributeName === 'data-theme') {
+          updateTheme();
+          break;
+        }
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true });
+
+    // Also observe style changes (some themes set CSS vars via style attribute)
+    const styleObserver = new MutationObserver(() => updateTheme());
+    styleObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+
+    return () => {
+      observer.disconnect();
+      styleObserver.disconnect();
+    };
+  }, [ptyReady]);
 
   // ── Initialize xterm + pty ──
   useEffect(() => {
@@ -74,28 +145,7 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
       cursorStyle: 'bar',
       fontSize: 13,
       fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace",
-      theme: {
-        background: '#0b0e1a',
-        foreground: '#d1d5db',
-        cursor: '#ff4455',
-        selectionBackground: 'rgba(255,68,85,0.25)',
-        black: '#1a1d2e',
-        red: '#ff4455',
-        green: '#34d399',
-        yellow: '#fbbf24',
-        blue: '#60a5fa',
-        magenta: '#c084fc',
-        cyan: '#22d3ee',
-        white: '#d1d5db',
-        brightBlack: '#2d3148',
-        brightRed: '#ff6b7a',
-        brightGreen: '#6ee7b7',
-        brightYellow: '#fcd34d',
-        brightBlue: '#93c5fd',
-        brightMagenta: '#d8b4fe',
-        brightCyan: '#67e8f9',
-        brightWhite: '#f3f4f6',
-      },
+      theme: getTerminalTheme(),
       allowProposedApi: true,
     });
 
@@ -106,7 +156,6 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
     term.open(containerRef.current);
     terminalRef.current = term;
 
-    // Fit to container
     requestAnimationFrame(() => {
       try { fitAddon.fit(); } catch {}
     });
@@ -146,7 +195,7 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
       window.api.terminalWrite(data);
     });
 
-    // ResizeObserver — keeps terminal sized to container and syncs pty dimensions
+    // ResizeObserver — keeps terminal sized to container and syncs pty dims
     const roCallback = () => {
       try {
         fitAddon.fit();
@@ -161,7 +210,6 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
       resizeObserver.observe(containerRef.current);
     }
 
-    // Store cleanup
     cleanupRef.current = () => {
       cancelled = true;
       disposeInput.dispose();
@@ -209,8 +257,9 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
 
   return (
     <div
-      className="flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-t border-midnight-800/50"
+      className="flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-t"
       style={{
+        borderColor: 'var(--theme-border, rgba(255,255,255,0.08))',
         height: open ? height : 0,
         minHeight: open ? MIN_HEIGHT : 0,
         opacity: open ? 1 : 0,
@@ -218,22 +267,35 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
     >
       {/* Resize handle */}
       <div
-        className="h-2 cursor-ns-resize flex items-center justify-center bg-midnight-900/80 hover:bg-midnight-800/80 transition-colors select-none group"
+        className="h-2 cursor-ns-resize flex items-center justify-center select-none group"
+        style={{ background: 'var(--theme-bg-secondary, #0f1525)' }}
         onMouseDown={handleMouseDown}
       >
-        <div className="w-8 h-0.5 rounded-full bg-midnight-700 group-hover:bg-redhawk-600/50 transition-colors" />
+        <div
+          className="w-8 h-0.5 rounded-full transition-colors"
+          style={{ background: 'var(--theme-text-muted, #4a5568)' }}
+          onMouseOver={(e) => (e.currentTarget.style.background = 'var(--theme-accent, #ff4455)')}
+          onMouseOut={(e) => (e.currentTarget.style.background = 'var(--theme-text-muted, #4a5568)')}
+        />
       </div>
 
       {/* Terminal header bar */}
-      <div className="flex items-center justify-between px-3 py-1 bg-midnight-900/90 border-b border-midnight-800/30">
+      <div
+        className="flex items-center justify-between px-3 py-1 border-b"
+        style={{
+          background: 'var(--theme-bg-secondary, #0f1525)',
+          borderColor: 'var(--theme-border, rgba(255,255,255,0.05))',
+        }}
+      >
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-400">TERMINAL</span>
+          <span style={{ color: 'var(--theme-text-secondary, #c8d0e0)' }} className="text-xs font-medium tracking-wider">TERMINAL</span>
           <span className={`w-1.5 h-1.5 rounded-full ${ptyReady ? 'bg-green-500' : 'bg-gray-600'}`} />
-          <span className="text-[10px] text-gray-600">{ptyReady ? 'WSL' : 'disconnected'}</span>
+          <span className="text-[10px]" style={{ color: 'var(--theme-text-muted, #4a5568)' }}>{ptyReady ? 'WSL' : 'disconnected'}</span>
         </div>
         <button
           onClick={onToggle}
-          className="text-gray-600 hover:text-gray-300 text-xs px-1.5 py-0.5 rounded transition-colors"
+          className="text-xs px-1.5 py-0.5 rounded transition-colors"
+          style={{ color: 'var(--theme-text-muted, #4a5568)' }}
           title="Close terminal"
         >
           ✕
@@ -244,7 +306,7 @@ export function TerminalPanel({ open, onToggle }: TerminalPanelProps) {
       <div
         ref={containerRef}
         className="w-full"
-        style={{ height: `calc(100% - 40px)` }}
+        style={{ height: 'calc(100% - 40px)' }}
         tabIndex={-1}
       />
     </div>
