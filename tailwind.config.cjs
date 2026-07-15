@@ -44,7 +44,6 @@ module.exports = {
         'scale-in': 'scaleIn 0.2s ease-out',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
         'bounce-in': 'bounceIn 0.4s ease-out',
-        'tour-pulse': 'tourPulse 2s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -75,10 +74,6 @@ module.exports = {
           '0%': { opacity: '0', transform: 'scale(0.8)' },
           '50%': { transform: 'scale(1.05)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
-        },
-        tourPulse: {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(255,68,85,0.6)' },
-          '50%': { boxShadow: '0 0 0 12px rgba(255,68,85,0)' },
         },
       },
     },

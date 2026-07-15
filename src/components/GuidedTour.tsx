@@ -28,7 +28,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="logo"]',
     title: '🦅 Welcome to RedHawk',
-    description: 'Your all-in-one red teaming suite. This quick tour will walk you through the key tools so you can start hunting.',
+    description: 'Your all-in-one red teaming suite. This quick tour will walk you through the main tools so you can start hunting.',
     placement: 'bottom',
     isCentered: true,
   },
@@ -88,26 +88,8 @@ const TOUR_STEPS: TourStep[] = [
     activateTab: 'team',
   },
   {
-    target: '[data-tour="hamburger"]',
-    title: '⚙️ Settings & History',
-    description: 'Open the menu to access Settings (tab order, split panes, compact mode, themes) and scan History.',
-    placement: 'bottom',
-  },
-  {
-    target: '[data-tour="deps"]',
-    title: '🔧 Dependencies',
-    description: 'Click here to check and auto-install missing tools (Nmap, Python, Evilginx2, Metasploit, etc.).',
-    placement: 'bottom',
-  },
-  {
-    target: '[data-tour="statusbar"]',
-    title: '📊 Status Bar',
-    description: 'Keep an eye on scan progress, active operation, C2 status, and dependency health — all at a glance.',
-    placement: 'top',
-  },
-  {
     target: '[data-tour="logo"]',
-    title: '✅ You\'re Ready!',
+    title: "✅ You're Ready!",
     description: 'That covers the essentials. Start with Recon — enter a target and hit Launch Scan. Happy hunting!',
     placement: 'bottom',
     isCentered: true,
@@ -239,9 +221,13 @@ export function GuidedTour({ onComplete, onSkip, onActivateTab, activeTab, isFir
 
   const goPrev = useCallback(() => {
     if (stepIndex > 0) {
+      const prevStep = TOUR_STEPS[stepIndex - 1];
+      if (prevStep.activateTab && prevStep.activateTab !== activeTab) {
+        onActivateTab(prevStep.activateTab);
+      }
       setStepIndex(stepIndex - 1);
     }
-  }, [stepIndex]);
+  }, [stepIndex, activeTab, onActivateTab]);
 
   const handleSkip = useCallback(() => {
     onSkip();
@@ -253,30 +239,22 @@ export function GuidedTour({ onComplete, onSkip, onActivateTab, activeTab, isFir
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 tour-backdrop active"
-        style={{
-          background: 'rgba(7, 11, 23, 0.75)',
-          backdropFilter: 'blur(3px)',
-        }}
-        onClick={handleSkip}
-      />
+      {/* Backdrop — blocks clicks on the app behind */}
+      <div className="fixed inset-0 z-50" onClick={handleSkip} />
 
-      {/* Target highlight ring */}
+      {/* Spotlight cutout — transparent over the target, dark everywhere else */}
       {targetRect && !step.isCentered && (
         <div
-          className="fixed pointer-events-none tour-spotlight"
+          className="fixed pointer-events-none"
           style={{
-            top: targetRect.top - 4,
-            left: targetRect.left - 4,
-            width: targetRect.width + 8,
-            height: targetRect.height + 8,
-            zIndex: 60,
-            borderRadius: 8,
-            border: '2px solid rgba(255, 68, 85, 0.7)',
-            boxShadow: '0 0 0 4px rgba(255, 68, 85, 0.15), 0 0 32px rgba(255, 68, 85, 0.2)',
-            animation: 'tourPulse 2s ease-in-out infinite',
+            top: targetRect.top,
+            left: targetRect.left,
+            width: targetRect.width,
+            height: targetRect.height,
+            zIndex: 51,
+            borderRadius: 6,
+            boxShadow: '0 0 0 2px rgba(255, 68, 85, 0.35), 0 0 0 9999px rgba(7, 11, 23, 0.78)',
+            transition: 'all 0.3s ease',
           }}
         />
       )}

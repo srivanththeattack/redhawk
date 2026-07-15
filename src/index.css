@@ -382,26 +382,9 @@
 .section-fade-enter:nth-child(8) { animation-delay: 0.35s; }
 
 /* ── Guided Tour Overlay ── */
-.tour-spotlight {
-  position: relative;
-  z-index: 60;
-  outline: 2px solid rgba(255, 68, 85, 0.6);
-  outline-offset: 3px;
-  border-radius: 8px;
-  animation: tourPulse 2s ease-in-out infinite;
-}
-
 .tour-tooltip {
   animation: bounceIn 0.35s ease-out;
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6));
-}
-
-.tour-backdrop {
-  pointer-events: none;
-}
-
-.tour-backdrop.active {
-  pointer-events: auto;
 }
 
 /* ── Tab transition ── */
