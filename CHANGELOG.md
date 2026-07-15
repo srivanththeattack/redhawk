@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.1.7] — 2026-07-15
+
+### Fixed
+- **Python runner killing maigret after 30s** — `python-runner.ts` had `timeout: 30000` in `spawn()` options. Node.js v24's `spawn` honors `timeout`, which killed the maigret subprocess before it could finish scanning 3000+ sites. Removed the timeout — the wrapper handles its own timeout internally.
+
+---
+
 ## [0.1.6] — 2026-07-15
 
 ### Added

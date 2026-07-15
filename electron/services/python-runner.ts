@@ -31,7 +31,8 @@ export class PythonRunner {
       // Use shell: false to avoid path-with-spaces being split by cmd.exe
       const proc = spawn(this.pythonPath, [scriptPath, ...args], {
         shell: false,
-        timeout: 30000,
+        // Note: no timeout here — the Python wrapper handles its own timeout internally.
+        // Node.js spawn timeout would kill the process prematurely for long-running tools like maigret.
       });
 
       let stdout = '';
