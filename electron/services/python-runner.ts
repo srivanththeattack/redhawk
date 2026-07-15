@@ -8,13 +8,12 @@ export class PythonRunner {
   private scriptsDir: string;
 
   constructor(userDataPath: string, _isPackaged: boolean) {
-    this.pythonPath = paths.pythonExe;
     this.scriptsDir = paths.pythonScripts;
 
-    // Fallback to system python if embedded not found
-    if (!fs.existsSync(this.pythonPath)) {
-      this.pythonPath = 'python';
-    }
+    // Always use the system Python from PATH. The embedded python._embed at
+    // paths.pythonExe is a minimal runtime without pip packages (maigret, etc.)
+    // installed, so it would fail for any script that imports them.
+    this.pythonPath = 'python';
   }
 
   /**
