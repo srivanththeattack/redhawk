@@ -18,9 +18,8 @@ Section -"DependencyCheck" SEC_DEPS
       "RedHawk needs optional external tools:$\r$\n$\r$\n\
        🔍  Nmap — port scanning$\r$\n\
        🐍  Python 3 + pip — script runtime$\r$\n\
-       📦  Node.js — dependency for some tools$\r$\n\
-
-       🎣  Evilginx2 — phishing framework$\r$\n\
+        📦  Node.js — dependency for some tools$\r$\n\
+        🎣  Evilginx2 — phishing framework$\r$\n\
        💥  Metasploit — exploitation framework$\r$\n\
        🐧  WSL — Linux subsystem$\r$\n$\r$\n\
        Check and install missing tools now?" \
