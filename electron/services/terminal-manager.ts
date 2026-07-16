@@ -1,24 +1,36 @@
 import { spawn, IPty } from 'node-pty';
 import { BrowserWindow } from 'electron';
+import {
+  isWindows,
+  getDefaultTerminalShell,
+  getTerminalShellArgs,
+  getTerminalEnvVars,
+  getTerminalCwd,
+} from './platform';
 
 /**
- * Manages a single WSL pty instance for the integrated terminal.
- * Only one terminal session at a time (matching VS Code's single-instance style).
+ * Manages a single terminal pty instance for the integrated terminal.
+ * Windows: wsl.exe | macOS/Linux: /bin/bash (or $SHELL)
  */
 export class TerminalManager {
   private pty: IPty | null = null;
 
-  /** Create a new WSL pty session. Returns false if one is already running. */
+  /** Create a new terminal pty session. Returns false if one is already running. */
   create(win: BrowserWindow, cols: number, rows: number): boolean {
     if (this.pty) return false;
 
     try {
-      this.pty = spawn('wsl.exe', [], {
+      const shell = getDefaultTerminalShell();
+      const shellArgs = getTerminalShellArgs();
+      const cwd = getTerminalCwd();
+      const env = getTerminalEnvVars();
+
+      this.pty = spawn(shell, shellArgs, {
         name: 'xterm-256color',
         cols,
         rows,
-        cwd: process.env.USERPROFILE,
-        env: { ...process.env, TERM: 'xterm-256color' },
+        cwd,
+        env,
       });
 
       this.pty.onData((data: string) => {

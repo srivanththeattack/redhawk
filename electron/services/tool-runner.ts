@@ -1,6 +1,6 @@
 import { spawn, execSync } from 'child_process';
-import * as path from 'path';
 import { EventEmitter } from 'events';
+import { isWindows, getNmapSearchPaths } from './platform';
 
 export class ToolRunner extends EventEmitter {
   private nmapPath: string;
@@ -11,15 +11,10 @@ export class ToolRunner extends EventEmitter {
   }
 
   /**
-   * Find nmap executable (check common locations on Windows)
+   * Find nmap executable (check common locations on any platform)
    */
   async findNmap(): Promise<string | null> {
-    const possiblePaths = [
-      'nmap',
-      'C:\\Program Files (x86)\\Nmap\\nmap.exe',
-      'C:\\Program Files\\Nmap\\nmap.exe',
-      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Nmap', 'nmap.exe'),
-    ];
+    const possiblePaths = getNmapSearchPaths();
 
     for (const p of possiblePaths) {
       try {
@@ -82,11 +77,12 @@ export class ToolRunner extends EventEmitter {
   }
 
   /**
-   * Check if a tool is available
+   * Check if a tool is available (cross-platform)
    */
   async isToolAvailable(tool: string): Promise<boolean> {
+    const whichCmd = isWindows() ? 'where' : 'which';
     try {
-      execSync(`where ${tool}`, { stdio: 'ignore' });
+      execSync(`${whichCmd} ${tool}`, { stdio: 'ignore' });
       return true;
     } catch {
       return false;

@@ -81,6 +81,15 @@
       ],
       "icon": "resources/icon.png"
     },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "icon": "resources/icon.png",
+      "category": "Utility"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

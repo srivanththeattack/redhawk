@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
+import { isWindows, getWhichCommand, getEvilginxSearchPaths } from './platform';
 
 const asyncExec = promisify(exec);
 
@@ -524,40 +525,35 @@ export class EvilginxManager extends EventEmitter {
   // ── Evilginx2 Process ──
 
   /**
-   * Check if evilginx2 is available (in WSL or on PATH)
+   * Check if evilginx2 is available (cross-platform)
    */
   async checkAvailability(): Promise<{ available: boolean; path: string; message: string }> {
-    // Check WSL first (async — don't block the main process)
+    // 1. Check PATH
+    const which = getWhichCommand();
     try {
-      const { stdout } = await asyncExec('wsl which evilginx2', { timeout: 5000 });
-      const wslResult = stdout.trim();
-      if (wslResult) {
-        return { available: true, path: `wsl:${wslResult}`, message: 'Available in WSL2' };
-      }
-    } catch { /* not in wsl */ }
+      const { stdout } = await asyncExec(`${which} evilginx2`, { timeout: 5000 });
+      const result = stdout.trim();
+      if (result) return { available: true, path: result.split('\n')[0], message: 'Available on PATH' };
+    } catch { /* not on PATH */ }
 
-    // Check PATH (async)
-    try {
-      await asyncExec('where evilginx2', { timeout: 5000 });
-      return { available: true, path: 'evilginx2', message: 'Available on PATH' };
-    } catch { /* not on path */ }
+    // 2. Known install paths
+    for (const p of getEvilginxSearchPaths()) {
+      if (fs.existsSync(p)) return { available: true, path: p, message: 'Found at: ' + p };
+    }
 
-    // Check common install dirs
-    const commonPaths = [
-      'C:\\tools\\evilginx2\\evilginx2.exe',
-      'C:\\Users\\Public\\evilginx2\\evilginx2.exe',
-      'C:\\cybersec stuff\\evilginx2\\evilginx2.exe',
-    ];
-    for (const p of commonPaths) {
-      if (fs.existsSync(p)) {
-        return { available: true, path: p, message: 'Found at: ' + p };
-      }
+    // 3. Windows: WSL fallback
+    if (isWindows()) {
+      try {
+        const { stdout } = await asyncExec('wsl which evilginx2', { timeout: 5000 });
+        const wslResult = stdout.trim();
+        if (wslResult) return { available: true, path: `wsl:${wslResult}`, message: 'Available in WSL2' };
+      } catch { /* not in wsl */ }
     }
 
     return {
       available: false,
       path: '',
-      message: 'Evilginx2 not found. Install in WSL2: wsl apt install -y golang && git clone https://github.com/kgretzky/evilginx2 && cd evilginx2 && make',
+      message: 'Evilginx2 not found. Install: go install github.com/kgretzky/evilginx2@latest',
     };
   }
 

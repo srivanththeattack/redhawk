@@ -134,9 +134,12 @@ const api = {
   saveReport: (reportHtml: string) => ipcRenderer.invoke('save-report', reportHtml),
   opReport: (operationId: string) => ipcRenderer.invoke('op-report', operationId),
 
+  // Platform
+  getPlatform: () => ipcRenderer.invoke('get-platform'),
+
   // Payload Factory
-  payloadGenerate: (type: string, lhost: string, lport: number, kind?: string) =>
-    ipcRenderer.invoke('payload-generate', type, lhost, lport, kind),
+  payloadGenerate: (type: string, lhost: string, lport: number, kind?: string, targetPlatform?: string) =>
+    ipcRenderer.invoke('payload-generate', type, lhost, lport, kind, targetPlatform),
   payloadObfuscate: (payload: string, method: string) =>
     ipcRenderer.invoke('payload-obfuscate', payload, method),
   payloadSave: (payload: string, filename: string) =>

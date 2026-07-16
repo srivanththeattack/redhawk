@@ -138,8 +138,19 @@ export interface RedHawkApi {
   saveReport: (reportHtml: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   opReport: (operationId: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
 
+  // Platform info
+  getPlatform: () => Promise<{
+    platform: string;
+    arch: string;
+    isWindows: boolean;
+    isMac: boolean;
+    isLinux: boolean;
+    displayName: string;
+    userDataPath: string;
+  }>;
+
   // Payload Factory
-  payloadGenerate: (type: string, lhost: string, lport: number, kind?: string) => Promise<string>;
+  payloadGenerate: (type: string, lhost: string, lport: number, kind?: string, targetPlatform?: string) => Promise<string>;
   payloadObfuscate: (payload: string, method: string) => Promise<string>;
   payloadSave: (payload: string, filename: string) => Promise<{ success: boolean; filePath?: string }>;
   payloadImport: () => Promise<{ filePath: string; content: string } | null>;

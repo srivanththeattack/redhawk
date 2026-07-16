@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { paths } from './paths';
+import { getPythonCommand } from './platform';
 
 export class PythonRunner {
   private pythonPath: string;
@@ -9,11 +10,7 @@ export class PythonRunner {
 
   constructor(userDataPath: string, _isPackaged: boolean) {
     this.scriptsDir = paths.pythonScripts;
-
-    // Always use the system Python from PATH. The embedded python._embed at
-    // paths.pythonExe is a minimal runtime without pip packages
-    // installed, so it would fail for any script that imports them.
-    this.pythonPath = 'python';
+    this.pythonPath = getPythonCommand();
   }
 
   /**

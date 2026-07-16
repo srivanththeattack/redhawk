@@ -24,6 +24,7 @@ import { OpsDashboardManager } from './services/ops-manager';
 import { PrivescManager } from './services/privesc-manager';
 import { TerminalManager } from './services/terminal-manager';
 import { paths, isDev } from './services/paths';
+import { isWindows, isMac, isLinux, getPlatform } from './services/platform';
 
 let mainWindow: BrowserWindow | null = null;
 let userDataPath: string;
@@ -1052,8 +1053,18 @@ function registerIpcHandlers() {
     }
   });
 
+  // ── Platform Info ──
+  ipcMain.handle('get-platform', async () => {
+    const pf = getPlatform();
+    return {
+      ...pf,
+      displayName: pf.isMac ? 'macOS' : pf.isLinux ? 'Linux' : 'Windows',
+      userDataPath,
+    };
+  });
+
   // ── Payload Factory ──
-  ipcMain.handle('payload-generate', async (_event, type: string, lhost: string, lport: number, kind?: string) => {
+  ipcMain.handle('payload-generate', async (_event, type: string, lhost: string, lport: number, kind?: string, targetPlatform?: string) => {
     switch (type) {
       case 'ps1':
         return getPayloadFactory().generatePs1(lhost, lport, kind || 'powershell_encoded');
@@ -1061,8 +1072,12 @@ function registerIpcHandlers() {
         return getPayloadFactory().generateCsharp(lhost, lport);
       case 'python':
         return getPayloadFactory().generatePython(lhost, lport);
+      case 'bash':
+        return getPayloadFactory().generateBash(lhost, lport);
+      case 'perl':
+        return getPayloadFactory().generatePerl(lhost, lport);
       case 'shellcode':
-        return getPayloadFactory().generateShellcode(lhost, lport, kind || 'x64');
+        return getPayloadFactory().generateShellcode(lhost, lport, kind || 'x64', targetPlatform);
       default:
         return `Unknown payload type: ${type}`;
     }
@@ -1263,5 +1278,5 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (!isMac()) app.quit();
 });
