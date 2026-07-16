@@ -2,7 +2,7 @@
   <br/>
   <img src="resources/icon.png" alt="RedHawk" width="80" height="80"/>
   <h1 align="center">RedHawk 🦅</h1>
-  <p align="center"><b>Offensive red teaming suite for Windows</b></p>
+  <p align="center"><b>Offensive red teaming suite for Windows, macOS & Linux</b></p>
   <p align="center">
     Recon · Exploit · Phish · Payload · Evade · Privesc · C2 · Exfil · Ops · Team
     <br/>
@@ -19,7 +19,7 @@
     <a href="https://github.com/srivanththeattack/redhawk/stargazers">
       <img src="https://img.shields.io/github/stars/srivanththeattack/redhawk?style=social" alt="Stars"/>
     </a>
-    <img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform"/>
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform"/>
   </p>
 
   <br/>
@@ -29,10 +29,14 @@
 
 ## Install
 
-**Quickest way** — grab the latest installer from the [Releases page](https://github.com/srivanththeattack/redhawk/releases):
+Choose your platform:
+
+### Windows
+
+**Quickest** — grab the latest installer from the [Releases page](https://github.com/srivanththeattack/redhawk/releases):
 
 ```
-RedHawk Setup 0.1.6.exe → run it → done
+RedHawk Setup 0.1.7.exe → run it → done
 ```
 
 **From source:**
@@ -46,18 +50,64 @@ npm run package
 
 That produces `release\RedHawk Setup <version>.exe`. Run the installer.
 
+### macOS (Intel & Apple Silicon)
+
+```bash
+git clone https://github.com/srivanththeattack/redhawk.git
+cd redhawk
+bash scripts/install-deps-mac.sh
+```
+
+Or manually:
+
+```bash
+brew install nmap python3 node
+pip3 install requests beautifulsoup4 dnspython python-whois colorama tqdm aiohttp
+npm install
+npm run package
+```
+
+Produces `release/RedHawk-<version>.dmg` and `release/RedHawk-<version>.zip`.
+
+### Linux (AppImage / deb / rpm)
+
+```bash
+git clone https://github.com/srivanththeattack/redhawk.git
+cd redhawk
+bash scripts/install-deps-linux.sh
+```
+
+Or manually:
+
+```bash
+# Debian/Ubuntu
+sudo apt install nmap python3 python3-pip whois curl wget git jq scrot
+pip3 install requests beautifulsoup4 dnspython python-whois colorama tqdm aiohttp
+npm install
+npm run package
+```
+
+Produces `release/RedHawk-<version>.AppImage`, `.deb`, and `.rpm`.
+
+### One-liner (all platforms)
+
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/srivanththeattack/redhawk/master/scripts/install-deps-linux.sh)   # Linux
+bash <(curl -sL https://raw.githubusercontent.com/srivanththeattack/redhawk/master/scripts/install-deps-mac.sh)    # macOS
+```
+
 ### Dependencies
 
 RedHawk handles most of these automatically, but here's what's needed under the hood:
 
-| Dependency | How it's handled |
-|---|---|
-| **Nmap** | Auto-installed via NSIS installer or "Install Deps" button |
-| **Python 3.12** | Embedded — downloaded on first launch |
-| **Node.js** | Auto-installed via NSIS installer or "Install Deps" |
-| **Metasploit** (Exploit tab) | Needs `msfrpcd` running in WSL: `msfrpc -P redhawk -S -f -j` |
-| **Evilginx2** (Phish tab) | Install in WSL or via NSIS installer |
-| **WSL** | Auto-installed by NSIS installer if missing |
+| Dependency | Windows | macOS | Linux |
+|---|---|---|---|
+| **Nmap** | Auto-installed via NSIS or "Install Deps" | `brew install nmap` | `apt install nmap` |
+| **Python 3** | Embedded — downloaded on first launch | `brew install python3` | `apt install python3 python3-pip` |
+| **Node.js** | Auto-installed via NSIS or "Install Deps" | `brew install node` | `apt install nodejs` |
+| **Metasploit** (Exploit tab) | WSL: `msfrpc -P redhawk -S -f -j` | `brew install metasploit` | `apt install metasploit-framework` |
+| **Evilginx2** (Phish tab) | WSL or NSIS installer | `go install github.com/kgretzky/evilginx2@latest` | Same |
+| **WSL** | Auto-installed by NSIS | N/A | N/A |
 
 ---
 
@@ -121,16 +171,24 @@ RedHawk handles most of these automatically, but here's what's needed under the 
 
 ## Development
 
-```powershell
+```bash
 npm run dev          # Vite hot-reload for the renderer
 npm run build        # Compile renderer + electron
-npm run package      # Build + create NSIS installer
+npm run package      # Build platform installer (exe/dmg/AppImage)
 npm run typecheck    # TypeScript type checking
 ```
 
+`npm run package` produces:
+
+| Platform | Output |
+|----------|--------|
+| Windows | `release\RedHawk Setup <version>.exe` + portable `.exe` |
+| macOS   | `release/RedHawk-<version>.dmg` + `.zip` |
+| Linux   | `release/RedHawk-<version>.AppImage` + `.deb` + `.rpm` |
+
 ### Tech stack
 
-React 18 · TypeScript · Tailwind CSS · Zustand · Electron 31 · Vite · Python 3.12 · Nmap
+React 18 · TypeScript · Tailwind CSS · Zustand · Electron 31 · Vite · Python 3 · Nmap
 
 > [!NOTE]
 > ## Development Status
